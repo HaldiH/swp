@@ -168,6 +168,16 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
     if (req.target().back() == '/')
         path.append("index.html");
 
+    if (req.target().starts_with("/api")) {
+        http::response<http::string_body> res{http::status::not_found, req.version()};
+        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(http::field::content_type, "text/html");
+        res.keep_alive(req.keep_alive());
+        res.body() = "The resource '" + std::string(target) + "' was not found.";
+        res.prepare_payload();
+        return res;
+    }
+
     // Attempt to open the file
     beast::error_code ec;
     http::file_body::value_type body;
@@ -197,7 +207,6 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
     // Respond to GET request
     http::response<http::file_body> res{std::piecewise_construct, std::make_tuple(std::move(body)),
                                         std::make_tuple(http::status::ok, req.version())};
-    res.body
     res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
     res.set(http::field::content_type, mime_type(path));
     res.content_length(size);
@@ -422,40 +431,3 @@ private:
         do_accept();
     }
 };
-
-//------------------------------------------------------------------------------
-
-int main(int argc, char *argv[]) {
-    // Check command line arguments.
-    if (argc != 5) {
-        std::cerr << "Usage: http-server-async-ssl <address> <port> <doc_root> <threads>\n"
-                  << "Example:\n"
-                  << "    http-server-async-ssl 0.0.0.0 8080 . 1\n";
-        return EXIT_FAILURE;
-    }
-    auto const address = net::ip::make_address(argv[1]);
-    auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
-    auto const doc_root = std::make_shared<std::string>(argv[3]);
-    auto const threads = std::max<int>(1, std::atoi(argv[4]));
-
-    // The io_context is required for all I/O
-    net::io_context ioc{threads};
-
-    // The SSL context is required, and holds certificates
-    ssl::context ctx{ssl::context::tlsv12};
-
-    // This holds the self-signed certificate used by the server
-    load_server_certificate(ctx);
-
-    // Create and launch a listening port
-    std::make_shared<listener>(ioc, ctx, tcp::endpoint{address, port}, doc_root)->run();
-
-    // Run the I/O service on the requested number of threads
-    std::vector<std::thread> v;
-    v.reserve(threads - 1);
-    for (auto i = threads - 1; i > 0; --i)
-        v.emplace_back([&ioc] { ioc.run(); });
-    ioc.run();
-
-    return EXIT_SUCCESS;
-}

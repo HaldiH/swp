@@ -3,19 +3,17 @@
 #include <sqlite3.h>
 #include <vector>
 
-#define DBNAME "server.db"
-
 namespace swp {
     struct SecValue {
-        std::vector<std::string> value;
+        std::vector<std::vector<std::string>> value;
         int sqlite_code;
     };
 
     class ServerDB {
     public:
-        ServerDB() {
+        explicit ServerDB(const char *filename) {
             int rc;
-            rc = sqlite3_open(DBNAME, &db);
+            rc = sqlite3_open(filename, &db);
             if (rc)
                 std::cerr << "Can't open database: " << sqlite3_errmsg(db) << std::endl;
 
@@ -29,8 +27,15 @@ namespace swp {
                                     "`group` TEXT,"
                                     "`value` TEXT NOT NULL );";
             rc = exec_request(sql);
-            if (rc !=  SQLITE_OK)
+            if (rc != SQLITE_OK)
                 std::cerr << "Can't initialize tables: " << sqlite3_errmsg(db) << std::endl;
+        }
+
+        ~ServerDB() {
+            int rc;
+            rc = sqlite3_close_v2(db);
+            if (rc != SQLITE_OK)
+                std::cerr << "Can't close database: " << sqlite3_errmsg(db) << std::endl;
         }
 
         SecValue getToken(const std::string &username) {
@@ -78,13 +83,18 @@ namespace swp {
             rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
             if (rc != SQLITE_OK) {
                 std::cerr << sqlite3_errmsg(db) << std::endl;
-                return SecValue{std::vector<std::string>{}, SQLITE_ERROR};
+                return SecValue{std::vector<std::vector<std::string>>{}, SQLITE_ERROR};
             }
-            std::vector<std::string> vector{};
-            while ((rc = sqlite3_step(stmt)) == SQLITE_ROW)
-                vector.emplace_back((reinterpret_cast<const char *>(sqlite3_column_text(stmt, iCol))));
+            std::vector<std::vector<std::string>> rows{};
+            while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+                std::vector<std::string> columns{};
+                for (int i = 0; i <= iCol; i++) {
+                    columns.emplace_back((reinterpret_cast<const char *>(sqlite3_column_text(stmt, i))));
+                }
+                rows.emplace_back(columns);
+            }
 
-            SecValue value = {vector, rc};
+            SecValue value = {rows, rc};
 
             sqlite3_finalize(stmt);
             return value;
