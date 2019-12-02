@@ -31,8 +31,14 @@
 *.out
 *.app
 
+# SQLite3 databases
+*.db
+
 # Visual Studio Workspace
 .vscode
+
+# CLion workspace
+.idea
 
 # Output build directory
 build

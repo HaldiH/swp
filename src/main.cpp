@@ -1,11 +1,14 @@
 #include <iostream>
-#include <sqlite3.h>
 #include "db_utils.hpp"
 
-int main(int argc, char* argv[]) {
-    // initialize_tables();
-    // setToken("gfkgjmnoresg rldoig njk bjkdnhgbnslkj tdjk ngjdfxgjngiunuijhnuihgun", "hugo");
-    // std::cout << getToken("hugo") << std::endl;
-    getUserPasswords("hugo");
-    return 0;
+int main(int argc, char *argv[]) {
+    SWP::server server;
+    SWP::server::setToken("Lorem ipsum dolor sit amet, consectetur adipiscing elit", "test");
+    SWP::server::storePassword("Hello, World!", "test", "");
+    for (const auto &v : SWP::server::getUserPasswords("test").value) {
+        std::cout << "Password: " << v << std::endl;
+    }
+    for (const auto &v: SWP::server::getToken("test").value) {
+        std::cout << "Token: " << v << std::endl;
+    }
 }

@@ -1,0 +1,26 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/hugo/Documents/Dev/SecureWebPass/server/src/db_utils.hpp
+iostream
+-
+string
+-
+sqlite3.h
+-
+vector
+-
+
+/home/hugo/Documents/Dev/SecureWebPass/server/src/main.cpp
+iostream
+-
+sqlite3.h
+-
+db_utils.hpp
+/home/hugo/Documents/Dev/SecureWebPass/server/src/db_utils.hpp
+

@@ -119,8 +119,9 @@ std::string path_cat(beast::string_view base, beast::string_view path) {
 // request. The type of the response object depends on the
 // contents of the request, so the interface requires the
 // caller to pass a generic lambda for receiving the response.
-template <class Body, class Allocator, class Send>
-void handle_request(beast::string_view doc_root, http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send) {
+template<class Body, class Allocator, class Send>
+void
+handle_request(beast::string_view doc_root, http::request<Body, http::basic_fields<Allocator>> &&req, Send &&send) {
     // Returns a bad request response
     auto const bad_request = [&req](beast::string_view why) {
         http::response<http::string_body> res{http::status::bad_request, req.version()};
@@ -194,8 +195,10 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
     }
 
     // Respond to GET request
-    http::response<http::file_body> res{std::piecewise_construct, std::make_tuple(std::move(body)), std::make_tuple(http::status::ok, req.version())};
-    res.body res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+    http::response<http::file_body> res{std::piecewise_construct, std::make_tuple(std::move(body)),
+                                        std::make_tuple(http::status::ok, req.version())};
+    res.body
+    res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
     res.set(http::field::content_type, mime_type(path));
     res.content_length(size);
     res.keep_alive(req.keep_alive());
@@ -205,7 +208,7 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
 //------------------------------------------------------------------------------
 
 // Report a failure
-void fail(beast::error_code ec, char const* what) {
+void fail(beast::error_code ec, char const *what) {
     // ssl::error::stream_truncated, also known as an SSL "short read",
     // indicates the peer closed the connection without performing the
     // required closing handshake (for example, Google does this to
@@ -234,11 +237,12 @@ class session : public std::enable_shared_from_this<session> {
     // This is the C++11 equivalent of a generic lambda.
     // The function object is used to send an HTTP message.
     struct send_lambda {
-        session& self_;
+        session &self_;
 
-        explicit send_lambda(session& self) : self_(self) {}
+        explicit send_lambda(session &self) : self_(self) {}
 
-        template <bool isRequest, class Body, class Fields> void operator()(http::message<isRequest, Body, Fields>&& msg) const {
+        template<bool isRequest, class Body, class Fields>
+        void operator()(http::message<isRequest, Body, Fields> &&msg) const {
             // The lifetime of the message has to extend
             // for the duration of the async operation so
             // we use a shared_ptr to manage it.
@@ -249,7 +253,8 @@ class session : public std::enable_shared_from_this<session> {
             self_.res_ = sp;
 
             // Write the response
-            http::async_write(self_.stream_, *sp, beast::bind_front_handler(&session::on_write, self_.shared_from_this(), sp->need_eof()));
+            http::async_write(self_.stream_, *sp,
+                              beast::bind_front_handler(&session::on_write, self_.shared_from_this(), sp->need_eof()));
         }
     };
 
@@ -260,10 +265,10 @@ class session : public std::enable_shared_from_this<session> {
     std::shared_ptr<void> res_;
     send_lambda lambda_;
 
-  public:
+public:
     // Take ownership of the socket
-    explicit session(tcp::socket&& socket, ssl::context& ctx, std::shared_ptr<std::string const> const& doc_root)
-        : stream_(std::move(socket), ctx), doc_root_(doc_root), lambda_(*this) {}
+    explicit session(tcp::socket &&socket, ssl::context &ctx, std::shared_ptr<std::string const> const &doc_root)
+            : stream_(std::move(socket), ctx), doc_root_(doc_root), lambda_(*this) {}
 
     // Start the asynchronous operation
     void run() {
@@ -279,7 +284,8 @@ class session : public std::enable_shared_from_this<session> {
         beast::get_lowest_layer(stream_).expires_after(std::chrono::seconds(30));
 
         // Perform the SSL handshake
-        stream_.async_handshake(ssl::stream_base::server, beast::bind_front_handler(&session::on_handshake, shared_from_this()));
+        stream_.async_handshake(ssl::stream_base::server,
+                                beast::bind_front_handler(&session::on_handshake, shared_from_this()));
     }
 
     void on_handshake(beast::error_code ec) {
@@ -354,14 +360,15 @@ class session : public std::enable_shared_from_this<session> {
 
 // Accepts incoming connections and launches the sessions
 class listener : public std::enable_shared_from_this<listener> {
-    net::io_context& ioc_;
-    ssl::context& ctx_;
+    net::io_context &ioc_;
+    ssl::context &ctx_;
     tcp::acceptor acceptor_;
     std::shared_ptr<std::string const> doc_root_;
 
-  public:
-    listener(net::io_context& ioc, ssl::context& ctx, tcp::endpoint endpoint, std::shared_ptr<std::string const> const& doc_root)
-        : ioc_(ioc), ctx_(ctx), acceptor_(ioc), doc_root_(doc_root) {
+public:
+    listener(net::io_context &ioc, ssl::context &ctx, tcp::endpoint endpoint,
+             std::shared_ptr<std::string const> const &doc_root)
+            : ioc_(ioc), ctx_(ctx), acceptor_(ioc), doc_root_(doc_root) {
         beast::error_code ec;
 
         // Open the acceptor
@@ -396,10 +403,11 @@ class listener : public std::enable_shared_from_this<listener> {
     // Start accepting incoming connections
     void run() { do_accept(); }
 
-  private:
+private:
     void do_accept() {
         // The new connection gets its own strand
-        acceptor_.async_accept(net::make_strand(ioc_), beast::bind_front_handler(&listener::on_accept, shared_from_this()));
+        acceptor_.async_accept(net::make_strand(ioc_),
+                               beast::bind_front_handler(&listener::on_accept, shared_from_this()));
     }
 
     void on_accept(beast::error_code ec, tcp::socket socket) {
@@ -417,7 +425,7 @@ class listener : public std::enable_shared_from_this<listener> {
 
 //------------------------------------------------------------------------------
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     // Check command line arguments.
     if (argc != 5) {
         std::cerr << "Usage: http-server-async-ssl <address> <port> <doc_root> <threads>\n"
