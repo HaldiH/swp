@@ -195,8 +195,7 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
 
     // Respond to GET request
     http::response<http::file_body> res{std::piecewise_construct, std::make_tuple(std::move(body)), std::make_tuple(http::status::ok, req.version())};
-    res.body
-    res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+    res.body res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
     res.set(http::field::content_type, mime_type(path));
     res.content_length(size);
     res.keep_alive(req.keep_alive());

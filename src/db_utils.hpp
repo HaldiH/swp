@@ -45,7 +45,6 @@ std::string getToken(const std::string username) {
         return "NULL";
 
     const std::string sql = "SELECT `token` FROM users WHERE username='" + username + "'";
-    const std::string data = "Callback function called";
 
     int rc;
     sqlite3_stmt* stmt = nullptr;
@@ -80,4 +79,27 @@ const int setToken(const std::string token, const std::string username) {
         std::cerr << "Cannot set token: " << zErrMsg << std::endl;
     sqlite3_close(db);
     return rc;
+}
+
+const sqlite3_value* getUserPasswords(const std::string username) {
+    const std::string sql = "SELECT * FROM passwords WHERE `username`='" + username + "';";
+    sqlite3* db = openDataBase();
+    if (!db)
+        return nullptr;
+
+    int rc;
+    sqlite3_stmt* stmt = nullptr;
+    rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, 0);
+    if (rc != SQLITE_OK) {
+        std::cerr << "Prepare failed" << std::endl;
+        sqlite3_close(db);
+        return nullptr;
+    }
+    rc = sqlite3_step(stmt);
+    auto v = sqlite3_column_text(stmt, 0);
+    auto temp = std::string{(const char*)v};
+    std::cout << stmt << std::endl;
+
+    sqlite3_finalize(stmt);
+    sqlite3_close(db);
 }
