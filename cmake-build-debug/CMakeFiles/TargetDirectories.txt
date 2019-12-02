@@ -1,3 +1,0 @@
-/home/hugo/Documents/Dev/SecureWebPass/server/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/home/hugo/Documents/Dev/SecureWebPass/server/cmake-build-debug/CMakeFiles/SecureWebPass_server.dir
-/home/hugo/Documents/Dev/SecureWebPass/server/cmake-build-debug/CMakeFiles/edit_cache.dir

@@ -1,1 +1,0 @@
-/usr/bin/clang++  -g   CMakeFiles/SecureWebPass_server.dir/src/main.cpp.o  -o SecureWebPass_server -lsqlite3 
