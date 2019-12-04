@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include <string>
 #include <sqlite3.h>
@@ -11,7 +13,22 @@ namespace swp {
 
     class ServerDB {
     public:
+        ServerDB() = default;
+
         explicit ServerDB(const char *filename) {
+            int rc = open(filename);
+            if (rc != SQLITE_OK)
+                std::cerr << "Can't initialize tables: " << sqlite3_errmsg(db) << std::endl;
+        }
+
+        ~ServerDB() {
+            int rc;
+            rc = sqlite3_close_v2(db);
+            if (rc != SQLITE_OK)
+                std::cerr << "Can't close database: " << sqlite3_errmsg(db) << std::endl;
+        }
+
+        int open(const char *filename) {
             int rc;
             rc = sqlite3_open(filename, &db);
             if (rc)
@@ -27,15 +44,7 @@ namespace swp {
                                     "`group` TEXT,"
                                     "`value` TEXT NOT NULL );";
             rc = exec_request(sql);
-            if (rc != SQLITE_OK)
-                std::cerr << "Can't initialize tables: " << sqlite3_errmsg(db) << std::endl;
-        }
-
-        ~ServerDB() {
-            int rc;
-            rc = sqlite3_close_v2(db);
-            if (rc != SQLITE_OK)
-                std::cerr << "Can't close database: " << sqlite3_errmsg(db) << std::endl;
+            return rc;
         }
 
         SecValue getToken(const std::string &username) {
@@ -48,6 +57,17 @@ namespace swp {
                                     "VALUES ('" +
                                     username + "','" + token + "');";
             return exec_request(sql);
+        }
+
+        bool tokenMatch(const std::string &username, const std::string &token_to_check) {
+            auto res = getToken(username);
+            if (res.sqlite_code != SQLITE_OK)
+                return false;
+            for (auto const &v : res.value) {
+                if (v[0] == token_to_check)
+                    return true;
+            }
+            return false;
         }
 
         int storePassword(const std::string &value, const std::string &username, const std::string &group) {
@@ -101,3 +121,5 @@ namespace swp {
         }
     };
 }
+
+inline swp::ServerDB db;

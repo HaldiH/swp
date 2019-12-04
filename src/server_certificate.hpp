@@ -1,46 +1,50 @@
+#pragma once
+
 #include <boost/asio/ssl/context.hpp>
 #include <boost/filesystem/fstream.hpp>
 #include <sstream>
 
-struct pki_path {
-    std::string cert, key, dh;
-};
-
 namespace bfs = boost::filesystem;
 
-std::string getFileData(const std::string &path) {
-    bfs::path p{path};
-    bfs::ifstream ifs{p};
-    std::stringstream strStream;
-    strStream << ifs.rdbuf();
-    std::string data = strStream.str();
-    ifs.close();
-    return data;
-}
+namespace swp {
 
-inline void load_server_certificate(boost::asio::ssl::context &ctx, const pki_path &pkiPath) {
-    const std::string cert = getFileData(pkiPath.cert);
-    const std::string key = getFileData(pkiPath.key);
-    const std::string dh = getFileData(pkiPath.dh);
+    struct pki_path {
+        std::string cert, key, dh;
+    };
 
-    ctx.set_password_callback(
-            [](std::size_t,
-               boost::asio::ssl::context_base::password_purpose) {
-                return "test";
-            });
+    inline void load_server_certificate(boost::asio::ssl::context &ctx, const pki_path &pkiPath) {
+        const auto getFileData = [](const std::string &path) {
+            bfs::path p{path};
+            bfs::ifstream ifs{p};
+            std::stringstream strStream;
+            strStream << ifs.rdbuf();
+            std::string data = strStream.str();
+            ifs.close();
+            return data;
+        };
+        const std::string cert = getFileData(pkiPath.cert);
+        const std::string key = getFileData(pkiPath.key);
+        const std::string dh = getFileData(pkiPath.dh);
 
-    ctx.set_options(
-            boost::asio::ssl::context::default_workarounds |
-            boost::asio::ssl::context::no_sslv2 |
-            boost::asio::ssl::context::single_dh_use);
+        ctx.set_password_callback(
+                [](std::size_t,
+                   boost::asio::ssl::context_base::password_purpose) {
+                    return "test";
+                });
 
-    ctx.use_certificate_chain(
-            boost::asio::buffer(cert.data(), cert.size()));
+        ctx.set_options(
+                boost::asio::ssl::context::default_workarounds |
+                boost::asio::ssl::context::no_sslv2 |
+                boost::asio::ssl::context::single_dh_use);
 
-    ctx.use_private_key(
-            boost::asio::buffer(key.data(), key.size()),
-            boost::asio::ssl::context::file_format::pem);
+        ctx.use_certificate_chain(
+                boost::asio::buffer(cert.data(), cert.size()));
 
-    ctx.use_tmp_dh(
-            boost::asio::buffer(dh.data(), dh.size()));
+        ctx.use_private_key(
+                boost::asio::buffer(key.data(), key.size()),
+                boost::asio::ssl::context::file_format::pem);
+
+        ctx.use_tmp_dh(
+                boost::asio::buffer(dh.data(), dh.size()));
+    }
 }

@@ -3,14 +3,13 @@
 #include "http_server_async_ssl.hpp"
 
 int main(int argc, char *argv[]) {
-    swp::ServerDB db("server.db");
-
+    db.open("server.db");
     auto const address = net::ip::make_address("0.0.0.0");
     auto const port = static_cast<unsigned short>(8080);
     auto const doc_root = std::make_shared<std::string>(".");
     auto const threads = std::max<int>(1, atoi(argv[4])); // NOLINT(cert-err34-c)
     auto const cert_path = "cert.pem", key_path = "key.pem", dh_path = "dh.pem";
-    const pki_path pkiPath{cert_path, key_path, dh_path};
+    const swp::pki_path pkiPath{cert_path, key_path, dh_path};
 
     std::cout << "Server listening on " << address.to_string() << ":" << port << " with " << threads;
     if (threads == 1)

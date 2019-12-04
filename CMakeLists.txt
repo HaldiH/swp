@@ -11,7 +11,7 @@ if (Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
     add_compile_options("-O0")
     add_compile_options("-mtune=native")
-    add_executable(server src/main.cpp src/server_certificate.hpp src/http_server_async_ssl.hpp)
+    add_executable(server src/main.cpp src/server_certificate.hpp src/http_server_async_ssl.hpp src/db_utils.hpp)
     target_link_libraries(server ${Boost_LIBRAIRIES} pthread crypto ssl sqlite3)
 endif ()
 

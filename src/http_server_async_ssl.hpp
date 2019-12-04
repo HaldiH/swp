@@ -13,7 +13,10 @@
 //
 //------------------------------------------------------------------------------
 
+#pragma once
+
 #include "server_certificate.hpp"
+#include "db_utils.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -30,7 +33,6 @@
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/config.hpp>
-#include <sqlite3.h>
 
 namespace beast = boost::beast;   // from <boost/beast.hpp>
 namespace http = beast::http;     // from <boost/beast/http.hpp>
@@ -166,10 +168,13 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
     if (req.target().starts_with("/api")) {
         http::response<http::string_body> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-        res.set(http::field::content_type, "application/text");
-        const std::string test = "hello world";
+        res.set(http::field::content_type, "application/text");;
         res.keep_alive(req.keep_alive());
-        res.body() = test;
+        res.body() = [&req] {
+            std::string buffer;
+            // TODO: Handle request
+            return buffer;
+        }();
         res.prepare_payload();
         return send(std::move(res));
     }
