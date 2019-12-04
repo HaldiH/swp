@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.10)
 project(SecureWebPass)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -11,6 +11,10 @@ if (Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
     add_compile_options("-O3")
     add_compile_options("-mtune=native")
-    add_executable(SecureWebPass_server src/main.cpp src/http_server_async_ssl.hpp src/server_certificate.hpp)
-    target_link_libraries(SecureWebPass_server ${Boost_LIBRAIRIES} pthread crypto ssl sqlite3)
+    add_executable(server src/main.cpp src/server_certificate.hpp)
+    target_link_libraries(server ${Boost_LIBRAIRIES} pthread crypto ssl sqlite3)
+endif ()
+
+if (WIN32)
+    target_link_libraries(server wsock32 ws2_32)
 endif ()

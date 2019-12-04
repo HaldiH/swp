@@ -163,20 +163,20 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
     if (req.target().empty() || req.target()[0] != '/' || req.target().find("..") != beast::string_view::npos)
         return send(bad_request("Illegal request-target"));
 
+    if (req.target().starts_with("/api")) {
+        http::response<http::string_body> res{http::status::ok, req.version()};
+        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(http::field::content_type, "application/text");
+        const std::string test = "hello world";
+        res.content_length(test.size());
+        res.keep_alive(req.keep_alive());
+        return send(std::move(res));
+    }
+
     // Build the path to the requested file
     std::string path = path_cat(doc_root, req.target());
     if (req.target().back() == '/')
         path.append("index.html");
-
-    if (req.target().starts_with("/api")) {
-        http::response<http::string_body> res{http::status::not_found, req.version()};
-        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-        res.set(http::field::content_type, "text/html");
-        res.keep_alive(req.keep_alive());
-        res.body() = "The resource '" + std::string(target) + "' was not found.";
-        res.prepare_payload();
-        return res;
-    }
 
     // Attempt to open the file
     beast::error_code ec;

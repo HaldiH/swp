@@ -8,7 +8,7 @@ int main(int argc, char *argv[]) {
     auto const address = net::ip::make_address("0.0.0.0");
     auto const port = static_cast<unsigned short>(8080);
     auto const doc_root = std::make_shared<std::string>(".");
-    auto const threads = std::max<int>(1, 1);
+    auto const threads = 1;
 
     // The io_context is required for all I/O
     net::io_context ioc{threads};
@@ -30,5 +30,4 @@ int main(int argc, char *argv[]) {
     ioc.run();
 
     return EXIT_SUCCESS;
-
 }
