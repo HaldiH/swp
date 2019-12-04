@@ -168,8 +168,9 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "application/text");
         const std::string test = "hello world";
-        res.content_length(test.size());
         res.keep_alive(req.keep_alive());
+        res.body() = test;
+        res.prepare_payload();
         return send(std::move(res));
     }
 

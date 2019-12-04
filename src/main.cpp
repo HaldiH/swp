@@ -8,7 +8,17 @@ int main(int argc, char *argv[]) {
     auto const address = net::ip::make_address("0.0.0.0");
     auto const port = static_cast<unsigned short>(8080);
     auto const doc_root = std::make_shared<std::string>(".");
-    auto const threads = 1;
+    auto const threads = std::max<int>(1, atoi(argv[4])); // NOLINT(cert-err34-c)
+    auto const cert_path = "cert.pem", key_path = "key.pem", dh_path = "dh.pem";
+    const pki_path pkiPath{cert_path, key_path, dh_path};
+
+    std::cout << "Server listening on " << address.to_string() << ":" << port << " with " << threads;
+    if (threads == 1)
+        std::cout << " thread";
+    else
+        std::cout << " threads";
+    std::cout << std::endl
+              << "Serving " << doc_root.get()->c_str() << std::endl;
 
     // The io_context is required for all I/O
     net::io_context ioc{threads};
@@ -17,7 +27,7 @@ int main(int argc, char *argv[]) {
     ssl::context ctx{ssl::context::tlsv12};
 
     // This holds the self-signed certificate used by the server
-    load_server_certificate(ctx);
+    load_server_certificate(ctx, pkiPath);
 
     // Create and launch a listening port
     std::make_shared<listener>(ioc, ctx, tcp::endpoint{address, port}, doc_root)->run();
