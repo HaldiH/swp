@@ -166,13 +166,18 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
         return send(bad_request("Illegal request-target"));
 
     if (req.target().starts_with("/api")) {
+        const boost::string_view req_path = req.target().substr(4);
         http::response<http::string_body> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "application/text");;
         res.keep_alive(req.keep_alive());
-        res.body() = [&req] {
+        res.body() = [&req, &req_path] {
             std::string buffer;
             // TODO: Handle request
+            if (req_path.starts_with("/login")) {
+                const std::string username = req["Username"];
+                const std::string password = req["Password"];
+            }
             return buffer;
         }();
         res.prepare_payload();
