@@ -7,8 +7,6 @@
 #include <array>
 
 namespace swp {
-    using Hash = std::array<uint8_t, 256>;
-    constexpr auto hash_size = sizeof(Hash);
     template<class T>
     struct SecValue {
         std::vector<std::vector<T>> value;
@@ -46,7 +44,7 @@ namespace swp {
                                     "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,"
                                     "`owner` TEXT NOT NULL,"
                                     "`group` TEXT,"
-                                    "`hash` BLOB NOT NULL );";
+                                    "`hash` TEXT NOT NULL );";
             rc = exec_request(sql);
             return rc;
         }
@@ -74,54 +72,59 @@ namespace swp {
             return false;
         }
 
-        int storePassword(const Hash *hash, const std::string &username, const std::string &group) {
-            auto const error = [&](int rc) {
-                std::cerr << sqlite3_errmsg(db) << std::endl;
-                return rc;
-            };
-            int rc;
-            sqlite3_stmt *stmt = nullptr;
-            const std::string sql = "INSERT INTO `passwords` ('owner','hash','group') "
-                                    "VALUES ('" +
-                                    username + "', ?, '" + group + "');";
-            rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-            if (rc != SQLITE_OK)
-                return error(rc);
-            rc = sqlite3_bind_blob(stmt, 1, hash, hash_size, SQLITE_STATIC);
-            if (rc != SQLITE_OK)
-                return error(rc);
-            rc = sqlite3_step(stmt);
-            if (rc != SQLITE_DONE)
-                return error(rc);
-            sqlite3_finalize(stmt);
-            return rc;
-        }
+//        int storePassword(const Hash *hash, const std::string &username, const std::string &group) {
+//            auto const error = [&](int rc) {
+//                std::cerr << sqlite3_errmsg(db) << std::endl;
+//                return rc;
+//            };
+//            int rc;
+//            sqlite3_stmt *stmt = nullptr;
+//            const std::string sql = "INSERT INTO `passwords` ('owner','hash','group') "
+//                                    "VALUES ('" +
+//                                    username + "', ?, '" + group + "');";
+//            rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+//            if (rc != SQLITE_OK)
+//                return error(rc);
+//            rc = sqlite3_bind_blob(stmt, 1, hash, hash_size, SQLITE_STATIC);
+//            if (rc != SQLITE_OK)
+//                return error(rc);
+//            rc = sqlite3_step(stmt);
+//            if (rc != SQLITE_DONE)
+//                return error(rc);
+//            sqlite3_finalize(stmt);
+//            return rc;
+//        }
 
 //        SecValue<Hash> getUserPasswords(const std::string &username) {
 //            const std::string sql = "SELECT hash FROM passwords WHERE `owner`='" + username + "';";
 //            return select_request<Hash>(sql, 0);
 //        }
 
-        bool passwordCheck(const std::string &username, const Hash req_hash) {
+        std::string getHash(const std::string &username) {
             const std::string sql = "SELECT `hash` FROM passwords WHERE `owner`='" + username + "';";
-
-            auto const error = [&](int rc) {
-                std::cerr << sqlite3_errmsg(db) << std::endl;
-                return false;
-            };
-            int rc;
-            sqlite3_stmt *stmt = nullptr;
-            rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-            if (rc != SQLITE_OK)
-                return error(rc);
-            rc = sqlite3_step(stmt);
-            if (rc != SQLITE_DONE)
-                return error(rc);
-            auto sq_hash = static_cast<const char *>(sqlite3_column_blob(stmt, 0));
-            auto sq_len = sqlite3_column_bytes(stmt, 0);
-            rc = sqlite3_finalize(stmt);
-            return rc == SQLITE_OK && std::equal(sq_hash, sq_hash + sq_len, req_hash.begin(), req_hash.end());
+            return select_row_request(sql, 0);
         }
+
+//        bool passwordCheck(const std::string &username, const Hash req_hash) {
+//            const std::string sql = "SELECT `hash` FROM passwords WHERE `owner`='" + username + "';";
+//
+//            auto const error = [&](int rc) {
+//                std::cerr << sqlite3_errmsg(db) << std::endl;
+//                return false;
+//            };
+//            int rc;
+//            sqlite3_stmt *stmt = nullptr;
+//            rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+//            if (rc != SQLITE_OK)
+//                return error(rc);
+//            rc = sqlite3_step(stmt);
+//            if (rc != SQLITE_DONE)
+//                return error(rc);
+//            auto sq_hash = static_cast<const char *>(sqlite3_column_blob(stmt, 0));
+//            auto sq_len = sqlite3_column_bytes(stmt, 0);
+//            rc = sqlite3_finalize(stmt);
+//            return rc == SQLITE_OK && std::equal(sq_hash, sq_hash + sq_len, req_hash.begin(), req_hash.end());
+//        }
 
     private:
         sqlite3 *db{};
@@ -157,6 +160,22 @@ namespace swp {
 
             sqlite3_finalize(stmt);
             return value;
+        }
+
+        std::string select_row_request(const std::string &sql, int iCol) {
+            int rc;
+            sqlite3_stmt *stmt = nullptr;
+            rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+            if (rc != SQLITE_OK) {
+                std::cerr << sqlite3_errmsg(db) << std::endl;
+                return "NULL";
+            }
+            rc = sqlite3_step(stmt);
+            if (rc != SQLITE_ROW)
+                return "NULL";
+            const std::string row = reinterpret_cast<const char *>(sqlite3_column_text(stmt, iCol));
+            sqlite3_finalize(stmt);
+            return row;
         }
     };
 }

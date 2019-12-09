@@ -26,6 +26,12 @@ int main(void) {
 
     // high-level API
     argon2i_hash_raw(t_cost, m_cost, parallelism, pwd.c_str(), pwd.size(), salt.c_str(), salt.size(), hash1, HASHLEN);
+    char *encoded = static_cast<char *>(malloc(256 * sizeof(char *)));
+    argon2i_hash_encoded(t_cost, m_cost, parallelism, pwd.c_str(), pwd.size(), salt.c_str(), salt.size(), HASHLEN,
+                         encoded, 256);
+    auto b = argon2i_verify("$argon2i$v=19$m=4096,t=3,p=1$Hxlqs6i0CUEpsbhVERYQVQ$9KCkK3tjxFdyjPGPy/VMA8cb7iE4ZCcdkOkmvr9unKo", pwd.c_str(), pwd.size());
+
+    std::cout << b << std::endl;
 
     // low-level API
     argon2_context context = {

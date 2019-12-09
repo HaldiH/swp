@@ -140,6 +140,16 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
         return res;
     };
 
+    auto const err_request = [&req](beast::string_view why, http::status status) {
+        http::response<http::string_body> res{status, req.version()};
+        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
+        res.set(http::field::content_type, "text/html");
+        res.keep_alive(req.keep_alive());
+        res.body() = std::string(why);
+        res.prepare_payload();
+        return res;
+    };
+
     // Returns a not found response
     auto const not_found = [&req](beast::string_view target) {
         http::response<http::string_body> res{http::status::not_found, req.version()};
@@ -176,82 +186,109 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "application/text");;
         res.keep_alive(req.keep_alive());
-        res.body() = [&req, &req_path] {
-            std::string buffer;
-            // TODO: Handle request
-            if (req_path.starts_with("/login")) {
-                req_path = req_path.substr(6);
-                const std::string salt = "test1234";
-                const auto username = req["Username"];
-                if (const auto pw_hash_base64 = req["Password-Hash"]; !pw_hash_base64.empty()) {
-                    const auto[pw_hash_raw_res, pw_hash_raw_len] = base64::decode<512>(
-                            std::string_view(pw_hash_base64.data(), pw_hash_base64.size()));
-//                    if (db.passwordCheck(username.to_string(), pw_hash_raw_res))
-//                        return std::string("Password OK");
-                } else if (boost::string_view password = req["Password"]; !password.empty()) {
-                    char hash[swp::hash_size];
-                    std::array<uint8_t , 256> buf{};
 
-                    uint32_t t_cost = 2;            // 1-pass computation
-                    uint32_t m_cost = (1 << 16);      // 64 mebibytes memory usage
-                    uint32_t parallelism = 1;       // number of threads and lanes
-
-                    int rc;
-                    // high-level API
-                    rc = argon2i_hash_raw(t_cost, m_cost, parallelism, password.to_string().c_str(), password.length(),
-                                          salt.c_str(), salt.length(), reinterpret_cast<uint8_t *>(buf.data()),
-                                          swp::hash_size);
-                    password = {};
-//                    binary::printBinary<256>(hash);
-
-//                    db.passwordCheck(username.to_string(), hash);
-                } else;
-            }
-            return buffer;
-        }();
+        std::string buffer;
+        // TODO: Handle request
+        if (req_path.starts_with("/login")) {
+            req_path = req_path.substr(6);
+            const auto username = req["Username"];
+            if (boost::string_view password = req["Password"]; !password.empty()) {
+                if (argon2i_verify(db.getHash(username.to_string()).c_str(), password.to_string().c_str(),
+                                   password.length()) != ARGON2_OK)
+                    return send(err_request("Bah authentication", http::status::forbidden));
+                buffer = std::string("OK");
+            } else;
+        }
+        res.body() = buffer;
         res.prepare_payload();
         return send(std::move(res));
     }
 
-    // Build the path to the requested file
+// Build the path to the requested file
     std::string path = path_cat(doc_root, req.target());
-    if (req.target().back() == '/')
+    if (req.
+
+                    target()
+
+                .
+
+                        back()
+
+        == '/')
         path.append("index.html");
 
-    // Attempt to open the file
+// Attempt to open the file
     beast::error_code ec;
     http::file_body::value_type body;
-    body.open(path.c_str(), beast::file_mode::scan, ec);
+    body.
+            open(path
+                         .
 
-    // Handle the case where the file doesn't exist
+                                 c_str(), beast::file_mode::scan, ec
+
+    );
+
+// Handle the case where the file doesn't exist
     if (ec == beast::errc::no_such_file_or_directory)
-        return send(not_found(req.target()));
+        return
+                send(not_found(req.target())
+                );
 
-    // Handle an unknown error
+// Handle an unknown error
     if (ec)
-        return send(server_error(ec.message()));
+        return
+                send(server_error(ec.message())
+                );
 
-    // Cache the size since we need it after the move
+// Cache the size since we need it after the move
     auto const size = body.size();
 
-    // Respond to HEAD request
-    if (req.method() == http::verb::head) {
+// Respond to HEAD request
+    if (req.
+
+            method()
+
+        == http::verb::head) {
         http::response<http::empty_body> res{http::status::ok, req.version()};
-        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-        res.set(http::field::content_type, mime_type(path));
-        res.content_length(size);
-        res.keep_alive(req.keep_alive());
-        return send(std::move(res));
+        res.
+                set(http::field::server, BOOST_BEAST_VERSION_STRING);
+        res.
+                set(http::field::content_type, mime_type(path)
+        );
+        res.
+                content_length(size);
+        res.
+                keep_alive(req
+                                   .
+
+                                           keep_alive()
+
+        );
+        return
+                send(std::move(res)
+                );
     }
 
-    // Respond to GET request
+// Respond to GET request
     http::response<http::file_body> res{std::piecewise_construct, std::make_tuple(std::move(body)),
                                         std::make_tuple(http::status::ok, req.version())};
-    res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-    res.set(http::field::content_type, mime_type(path));
-    res.content_length(size);
-    res.keep_alive(req.keep_alive());
-    return send(std::move(res));
+    res.
+            set(http::field::server, BOOST_BEAST_VERSION_STRING);
+    res.
+            set(http::field::content_type, mime_type(path)
+    );
+    res.
+            content_length(size);
+    res.
+            keep_alive(req
+                               .
+
+                                       keep_alive()
+
+    );
+    return
+            send(std::move(res)
+            );
 }
 
 //------------------------------------------------------------------------------
