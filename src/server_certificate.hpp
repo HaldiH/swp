@@ -8,6 +8,13 @@ namespace bfs = boost::filesystem;
 
 namespace swp {
 
+    /*
+        To generate the self-signed certificates, use OpenSSL:
+
+        openssl dhparam -out dh.pem 4096
+        openssl req -newkey rsa:4096 -nodes -keyout key.pem -x509 -days 10000 -out cert.pem -subj "/C=US/ST=CA/L=Los Angeles/O=Beast/CN=www.example.com"
+    */
+
     struct pki_path {
         std::string cert, key, dh;
     };

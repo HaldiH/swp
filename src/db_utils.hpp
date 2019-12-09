@@ -4,10 +4,14 @@
 #include <string>
 #include <sqlite3.h>
 #include <vector>
+#include <array>
 
 namespace swp {
+    using Hash = std::array<uint8_t, 256>;
+    constexpr auto hash_size = sizeof(Hash);
+    template<class T>
     struct SecValue {
-        std::vector<std::vector<std::string>> value;
+        std::vector<std::vector<T>> value;
         int sqlite_code;
     };
 
@@ -42,14 +46,14 @@ namespace swp {
                                     "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,"
                                     "`owner` TEXT NOT NULL,"
                                     "`group` TEXT,"
-                                    "`value` TEXT NOT NULL );";
+                                    "`hash` BLOB NOT NULL );";
             rc = exec_request(sql);
             return rc;
         }
 
-        SecValue getToken(const std::string &username) {
+        SecValue<std::string> getToken(const std::string &username) {
             const std::string sql = "SELECT `token` FROM users WHERE username='" + username + "'";
-            return select_request(sql, 0);
+            return select_request<std::string>(sql, 0);
         }
 
         int setToken(const std::string &token, const std::string &username) {
@@ -70,19 +74,53 @@ namespace swp {
             return false;
         }
 
-        int storePassword(const std::string &value, const std::string &username, const std::string &group) {
-            const std::string sql = "INSERT INTO `passwords` ('owner','value','group') "
+        int storePassword(const Hash *hash, const std::string &username, const std::string &group) {
+            auto const error = [&](int rc) {
+                std::cerr << sqlite3_errmsg(db) << std::endl;
+                return rc;
+            };
+            int rc;
+            sqlite3_stmt *stmt = nullptr;
+            const std::string sql = "INSERT INTO `passwords` ('owner','hash','group') "
                                     "VALUES ('" +
-                                    username + "', '" + value + "', '" + group + "');";
-
-            return exec_request(sql);
+                                    username + "', ?, '" + group + "');";
+            rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+            if (rc != SQLITE_OK)
+                return error(rc);
+            rc = sqlite3_bind_blob(stmt, 1, hash, hash_size, SQLITE_STATIC);
+            if (rc != SQLITE_OK)
+                return error(rc);
+            rc = sqlite3_step(stmt);
+            if (rc != SQLITE_DONE)
+                return error(rc);
+            sqlite3_finalize(stmt);
+            return rc;
         }
 
-        SecValue getUserPasswords(const std::string &username) {
-            const std::string sql = "SELECT value FROM passwords WHERE `owner`='" + username + "';";
+//        SecValue<Hash> getUserPasswords(const std::string &username) {
+//            const std::string sql = "SELECT hash FROM passwords WHERE `owner`='" + username + "';";
+//            return select_request<Hash>(sql, 0);
+//        }
 
-            SecValue value = select_request(sql, 0);
-            return value;
+        bool passwordCheck(const std::string &username, const Hash req_hash) {
+            const std::string sql = "SELECT `hash` FROM passwords WHERE `owner`='" + username + "';";
+
+            auto const error = [&](int rc) {
+                std::cerr << sqlite3_errmsg(db) << std::endl;
+                return false;
+            };
+            int rc;
+            sqlite3_stmt *stmt = nullptr;
+            rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+            if (rc != SQLITE_OK)
+                return error(rc);
+            rc = sqlite3_step(stmt);
+            if (rc != SQLITE_DONE)
+                return error(rc);
+            auto sq_hash = static_cast<const char *>(sqlite3_column_blob(stmt, 0));
+            auto sq_len = sqlite3_column_bytes(stmt, 0);
+            rc = sqlite3_finalize(stmt);
+            return rc == SQLITE_OK && std::equal(sq_hash, sq_hash + sq_len, req_hash.begin(), req_hash.end());
         }
 
     private:
@@ -97,24 +135,25 @@ namespace swp {
             return rc;
         }
 
-        SecValue select_request(const std::string &sql, const int iCol) {
+        template<class T>
+        SecValue<T> select_request(const std::string &sql, int iCol) {
             int rc;
             sqlite3_stmt *stmt = nullptr;
             rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
             if (rc != SQLITE_OK) {
                 std::cerr << sqlite3_errmsg(db) << std::endl;
-                return SecValue{std::vector<std::vector<std::string>>{}, SQLITE_ERROR};
+                return SecValue<T>{std::vector<std::vector<T>>{}, SQLITE_ERROR};
             }
-            std::vector<std::vector<std::string>> rows{};
+            std::vector<std::vector<T>> rows{};
             while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-                std::vector<std::string> columns{};
+                std::vector<T> columns{};
                 for (int i = 0; i <= iCol; i++) {
                     columns.emplace_back((reinterpret_cast<const char *>(sqlite3_column_text(stmt, i))));
                 }
                 rows.emplace_back(columns);
             }
 
-            SecValue value = {rows, rc};
+            SecValue<T> value = {rows, rc};
 
             sqlite3_finalize(stmt);
             return value;

@@ -17,6 +17,7 @@
 
 #include "server_certificate.hpp"
 #include "db_utils.hpp"
+#include "base64.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -33,6 +34,10 @@
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/config.hpp>
+#include <tiff.h>
+#include <argon2.h>
+#include <binary.hpp>
+#include <hex.hpp>
 
 namespace beast = boost::beast;   // from <boost/beast.hpp>
 namespace http = beast::http;     // from <boost/beast/http.hpp>
@@ -166,7 +171,7 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
         return send(bad_request("Illegal request-target"));
 
     if (req.target().starts_with("/api")) {
-        const boost::string_view req_path = req.target().substr(4);
+        boost::string_view req_path = req.target().substr(4);
         http::response<http::string_body> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "application/text");;
@@ -175,8 +180,32 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
             std::string buffer;
             // TODO: Handle request
             if (req_path.starts_with("/login")) {
-                const std::string username = req["Username"];
-                const std::string password = req["Password"];
+                req_path = req_path.substr(6);
+                const std::string salt = "test1234";
+                const auto username = req["Username"];
+                if (const auto pw_hash_base64 = req["Password-Hash"]; !pw_hash_base64.empty()) {
+                    const auto[pw_hash_raw_res, pw_hash_raw_len] = base64::decode<512>(
+                            std::string_view(pw_hash_base64.data(), pw_hash_base64.size()));
+//                    if (db.passwordCheck(username.to_string(), pw_hash_raw_res))
+//                        return std::string("Password OK");
+                } else if (boost::string_view password = req["Password"]; !password.empty()) {
+                    char hash[swp::hash_size];
+                    std::array<uint8_t , 256> buf{};
+
+                    uint32_t t_cost = 2;            // 1-pass computation
+                    uint32_t m_cost = (1 << 16);      // 64 mebibytes memory usage
+                    uint32_t parallelism = 1;       // number of threads and lanes
+
+                    int rc;
+                    // high-level API
+                    rc = argon2i_hash_raw(t_cost, m_cost, parallelism, password.to_string().c_str(), password.length(),
+                                          salt.c_str(), salt.length(), reinterpret_cast<uint8_t *>(buf.data()),
+                                          swp::hash_size);
+                    password = {};
+//                    binary::printBinary<256>(hash);
+
+//                    db.passwordCheck(username.to_string(), hash);
+                } else;
             }
             return buffer;
         }();
