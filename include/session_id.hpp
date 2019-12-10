@@ -4,7 +4,7 @@
 
 #ifndef SECUREWEBPASS_SESSION_ID_HPP
 #define SECUREWEBPASS_SESSION_ID_HPP
-#define SESSIONID_SIZE 256
+#define SESSIONID_SIZE 128
 
 #include <string_view>
 #include <array>

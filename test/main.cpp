@@ -3,7 +3,7 @@
 //
 
 #include <string>
-#include "db_utils.hpp"
+#include "server_db.hpp"
 
 int main(int argc, char *argv[]) {
     db.open("server.db");
