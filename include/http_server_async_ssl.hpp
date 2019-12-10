@@ -17,7 +17,7 @@
 
 #include "server_certificate.hpp"
 #include "db_utils.hpp"
-#include "base64.hpp"
+#include "session_id.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -193,12 +193,16 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
             req_path = req_path.substr(6);
             const auto username = req["Username"];
             if (auto password = req["Password"]; !password.empty()) {
-                if (argon2i_verify(db.getHash(username.to_string()).c_str(), password.to_string().c_str(),
+                if (argon2i_verify(db.getPasswordHash(username.to_string()).c_str(), password.to_string().c_str(),
                                    password.length()) != ARGON2_OK)
-                    return send(err_request("Bah authentication", http::status::forbidden));
+                    return send(err_request("Bad authentication", http::status::forbidden));
+                SessionID<SESSIONID_SIZE> sessionId;
+                res.set(http::field::set_cookie, "sessionid=" + std::string(sessionId.view()));
                 buffer = std::string("OK");
-            } else;
-        }
+            } else
+                return send(err_request("Bad authentication", http::status::forbidden));
+        } else
+            return send(not_found(req.target()));
         res.body() = buffer;
         res.prepare_payload();
         return send(std::move(res));
@@ -286,7 +290,8 @@ class session : public std::enable_shared_from_this<session> {
             // The lifetime of the message has to extend
             // for the duration of the async operation so
             // we use a shared_ptr to manage it.
-            auto sp = std::make_shared<http::message<isRequest, Body, Fields>>(std::move(msg));
+            auto sp = std::make_shared<http::message<isRequest, Body, Fields>>
+                    (std::move(msg));
 
             // Store a type-erased version of the shared
             // pointer in the class to keep it alive.

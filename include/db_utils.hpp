@@ -5,6 +5,14 @@
 #include <sqlite3.h>
 #include <vector>
 #include <array>
+#include <argon2.h>
+#include <cstring>
+
+#include "session_id.hpp"
+
+#define HASHLEN 32
+#define SALTLEN 16
+#define ENCLEN 4 * HASHLEN
 
 namespace swp {
     template<class T>
@@ -39,17 +47,18 @@ namespace swp {
             const std::string sql = "CREATE TABLE IF NOT EXISTS `users` ("
                                     "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,"
                                     "`username` TEXT NOT NULL,"
-                                    "`token` CHAR(50) );"
+                                    "`password` TEXT NOT NULL,"
+                                    "`token` TEXT,"
+                                    "`session_ids` TEXT );"
                                     "CREATE TABLE IF NOT EXISTS `passwords` ("
                                     "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,"
                                     "`owner` TEXT NOT NULL,"
-                                    "`group` TEXT,"
-                                    "`hash` TEXT NOT NULL );";
+                                    "`group` TEXT);";
             rc = exec_request(sql);
             return rc;
         }
 
-        SecValue<std::string> getToken(const std::string &username) {
+        [[nodiscard]] SecValue<std::string> getToken(const std::string &username) const {
             const std::string sql = "SELECT `token` FROM users WHERE username='" + username + "'";
             return select_request<std::string>(sql, 0);
         }
@@ -61,7 +70,7 @@ namespace swp {
             return exec_request(sql);
         }
 
-        bool tokenMatch(const std::string &username, const std::string &token_to_check) {
+        [[nodiscard]] bool tokenMatch(const std::string &username, const std::string &token_to_check) const {
             auto res = getToken(username);
             if (res.sqlite_code != SQLITE_OK)
                 return false;
@@ -70,6 +79,26 @@ namespace swp {
                     return true;
             }
             return false;
+        }
+
+        int setSessionID(const SessionID<SESSIONID_SIZE> sessionId, const std::string &username) {
+            const std::string sql =
+                    "UPDATE users SET `session_ids`='" + std::string(sessionId.view()) + "' WHERE `username`='" +
+                    username + "';";
+            return exec_request(sql);
+        }
+
+        int setPassword(const std::string &username, const std::string &password) {
+            const std::string sql =
+                    "UPDATE users SET `password`='" + getEncodedPassword(password) + "' WHERE `username`='" + username +
+                    "';";
+            return exec_request(sql);
+        }
+
+        int registerUser(const std::string &username, const std::string &password) {
+            const std::string sql = "INSERT INTO users (username,password) VALUES ('" + username + "','" +
+                                    getEncodedPassword(password) + "');";
+            return exec_request(sql);
         }
 
 //        int storePassword(const Hash *hash, const std::string &username, const std::string &group) {
@@ -100,8 +129,10 @@ namespace swp {
 //            return select_request<Hash>(sql, 0);
 //        }
 
-        std::string getHash(const std::string &username) {
-            const std::string sql = "SELECT `hash` FROM passwords WHERE `owner`='" + username + "';";
+        [[nodiscard]]
+
+        std::string getPasswordHash(const std::string &username) const {
+            const std::string sql = "SELECT `password` FROM users WHERE `username`='" + username + "';";
             return select_row_request(sql, 0);
         }
 
@@ -131,15 +162,14 @@ namespace swp {
 
         int exec_request(const std::string &sql) {
             char *zErrMsg;
-
             int rc = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &zErrMsg);
             if (rc != SQLITE_OK)
-                std::cerr << zErrMsg << std::endl;
+                std::cerr << sqlite3_errmsg(db) << std::endl;
             return rc;
         }
 
         template<class T>
-        SecValue<T> select_request(const std::string &sql, int iCol) {
+        [[nodiscard]] SecValue<T> select_request(const std::string &sql, int iCol) const {
             int rc;
             sqlite3_stmt *stmt = nullptr;
             rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -162,7 +192,7 @@ namespace swp {
             return value;
         }
 
-        std::string select_row_request(const std::string &sql, int iCol) {
+        [[nodiscard]] std::string select_row_request(const std::string &sql, int iCol) const {
             int rc;
             sqlite3_stmt *stmt = nullptr;
             rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -176,6 +206,41 @@ namespace swp {
             const std::string row = reinterpret_cast<const char *>(sqlite3_column_text(stmt, iCol));
             sqlite3_finalize(stmt);
             return row;
+        }
+
+        [[nodiscard]] static std::string getEncodedPassword(const std::string &password) {
+            auto getSalt = [] {
+                static auto gen = [] {
+                    std::random_device rd;
+                    std::seed_seq sseq({(int) rd(), (int) std::time(nullptr)});
+                    return std::mt19937_64{sseq};
+                }();
+
+                std::array<std::uint8_t, SALTLEN> ret{};
+                static_assert(SALTLEN % 8 == 0);
+                for (int i = 0; i < SALTLEN / 8; ++i) {
+                    const auto rval = gen();
+                    std::memcpy(ret.data() + i * 8, &rval, sizeof(rval));
+                }
+                return ret;
+            };
+
+            std::string encoded;
+            encoded.resize(ENCLEN);
+
+            uint32_t t_cost = 3;            // 1-pass computation
+            uint32_t m_cost = (1 << 16);      // 64 mebibytes memory usage
+            uint32_t parallelism = 1;       // number of threads and lanes
+
+            int rc;
+            rc = argon2i_hash_encoded(t_cost, m_cost, parallelism, password.c_str(), password.size(), getSalt().data(), SALTLEN,
+                                      HASHLEN, encoded.data(), ENCLEN);
+            if (rc != ARGON2_OK) {
+                std::cerr << "Error occurred while encoding password: " << rc << std::endl;
+                return "NULL";
+            }
+            encoded.erase(encoded.find('\0'));
+            return encoded;
         }
     };
 }
