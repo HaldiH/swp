@@ -17,7 +17,7 @@
 namespace swp {
     template<class T>
     struct SecValue {
-        std::vector<std::vector<T>> value;
+        std::vector <std::vector<T>> value;
         int sqlite_code;
     };
 
@@ -83,9 +83,20 @@ namespace swp {
 
         int setSessionID(const SessionID<SESSIONID_SIZE> sessionId, const std::string &username) {
             const std::string sql =
-                    "UPDATE users SET `session_ids`='" + std::string(sessionId.view()) + "' WHERE `username`='" +
+                    "UPDATE users SET `session_ids`=concat(session_ids,'" + std::string(sessionId.view()) +
+                    ";') WHERE `username`='" +
                     username + "';";
             return exec_request(sql);
+        }
+
+        std::string getSessionIDs(const std::string &username) const {
+            const std::string sql = "SELECT `session_ids` FROM users WHERE `username`='" + username + "';";
+            return select_row_request(sql, 0);
+        }
+
+        int checkSessionID(const std::string &username, const std::string &session_id) {
+            std::string sess_ids = getSessionIDs(username);
+            return sess_ids.find(session_id);
         }
 
         int setPassword(const std::string &username, const std::string &password) {
@@ -175,11 +186,11 @@ namespace swp {
             rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
             if (rc != SQLITE_OK) {
                 std::cerr << sqlite3_errmsg(db) << std::endl;
-                return SecValue<T>{std::vector<std::vector<T>>{}, SQLITE_ERROR};
+                return SecValue<T>{std::vector < std::vector < T >> {}, SQLITE_ERROR};
             }
-            std::vector<std::vector<T>> rows{};
+            std::vector <std::vector<T>> rows{};
             while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-                std::vector<T> columns{};
+                std::vector <T> columns{};
                 for (int i = 0; i <= iCol; i++) {
                     columns.emplace_back((reinterpret_cast<const char *>(sqlite3_column_text(stmt, i))));
                 }
@@ -233,7 +244,8 @@ namespace swp {
             uint32_t parallelism = 1;       // number of threads and lanes
 
             int rc;
-            rc = argon2i_hash_encoded(t_cost, m_cost, parallelism, password.c_str(), password.size(), getSalt().data(), SALTLEN,
+            rc = argon2i_hash_encoded(t_cost, m_cost, parallelism, password.c_str(), password.size(), getSalt().data(),
+                                      SALTLEN,
                                       HASHLEN, encoded.data(), ENCLEN);
             if (rc != ARGON2_OK) {
                 std::cerr << "Error occurred while encoding password: " << rc << std::endl;

@@ -14,10 +14,9 @@ if (Boost_FOUND)
     add_executable(server src/main.cpp include/server_certificate.hpp include/http_server_async_ssl.hpp include/server_db.hpp include/base64.hpp include/hex.hpp include/binary.hpp include/session_id.hpp)
     target_link_libraries(server ${Boost_LIBRAIRIES} pthread crypto ssl sqlite3 argon2)
     target_include_directories(server PUBLIC third_party include)
-endif ()
-
-if (WIN32)
-    target_link_libraries(server wsock32 ws2_32)
+    if (WIN32)
+        target_link_libraries(server wsock32 ws2_32)
+    endif ()
 endif ()
 
 add_executable(tests test/main.cpp)

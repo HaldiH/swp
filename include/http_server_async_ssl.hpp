@@ -34,10 +34,7 @@
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/config.hpp>
-#include <tiff.h>
 #include <argon2.h>
-#include <binary.hpp>
-#include <hex.hpp>
 
 namespace beast = boost::beast;   // from <boost/beast.hpp>
 namespace http = beast::http;     // from <boost/beast/http.hpp>
@@ -187,16 +184,23 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
         res.set(http::field::content_type, "application/text");;
         res.keep_alive(req.keep_alive());
 
+        const auto username = req["Username"];
+
         std::string buffer;
-        // TODO: Handle request
-        if (req_path.starts_with("/login")) {
+        if (const auto sessionid = req["sessionid"]; !sessionid.empty()) {
+            const auto b = checkSessionID(username, session_id);
+            if (b) {
+
+            }
+        } else if (req_path.starts_with("/login")) {
             req_path = req_path.substr(6);
-            const auto username = req["Username"];
             if (auto password = req["Password"]; !password.empty()) {
                 if (argon2i_verify(db.getPasswordHash(username.to_string()).c_str(), password.to_string().c_str(),
                                    password.length()) != ARGON2_OK)
                     return send(err_request("Bad authentication", http::status::forbidden));
+                password={};
                 SessionID<SESSIONID_SIZE> sessionId;
+                db.setSessionID(sessionId, username.to_string());
                 res.set(http::field::set_cookie, "sessionid=" + std::string(sessionId.view()));
                 buffer = std::string("OK");
             } else
