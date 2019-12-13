@@ -190,8 +190,9 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
         if (const auto sessionid = req["sessionid"]; !sessionid.empty()) {
             const auto b = db.checkSessionID(username.to_string(), sessionid.to_string());
             if (b) {
-
-            }
+                buffer = std::string("Logged in");
+            } else
+                return send(err_request("Bad session ID", http::status::forbidden));
         } else if (req_path.starts_with("/login")) {
             req_path = req_path.substr(6);
             if (auto password = req["Password"]; !password.empty()) {
