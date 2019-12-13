@@ -188,7 +188,7 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
 
         std::string buffer;
         if (const auto sessionid = req["sessionid"]; !sessionid.empty()) {
-            const auto b = checkSessionID(username, session_id);
+            const auto b = db.checkSessionID(username.to_string(), sessionid.to_string());
             if (b) {
 
             }
@@ -198,7 +198,7 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
                 if (argon2i_verify(db.getPasswordHash(username.to_string()).c_str(), password.to_string().c_str(),
                                    password.length()) != ARGON2_OK)
                     return send(err_request("Bad authentication", http::status::forbidden));
-                password={};
+                password.clear();
                 SessionID<SESSIONID_SIZE> sessionId;
                 db.setSessionID(sessionId, username.to_string());
                 res.set(http::field::set_cookie, "sessionid=" + std::string(sessionId.view()));
