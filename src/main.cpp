@@ -1,10 +1,10 @@
 #include <iostream>
-#include "server_db.hpp"
 #include "http_server_async_ssl.hpp"
+#include "server_db.hpp"
 
 constexpr auto DATABASE_FILENAME = "server.db";
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     swp::ServerDB db(DATABASE_FILENAME);
     auto const address = net::ip::make_address("0.0.0.0");
     auto const port = static_cast<unsigned short>(8080);
@@ -16,8 +16,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Server listening on " << address.to_string() << ":" << port << " with " << threads << " thread";
     if (threads > 1)
         std::cout << "s" << std::endl;
-    std::cout << std::endl
-              << "Serving " << doc_root.get()->c_str() << std::endl;
+    std::cout << std::endl << "Serving " << doc_root.get()->c_str() << std::endl;
 
     // The io_context is required for all I/O
     net::io_context ioc{threads};

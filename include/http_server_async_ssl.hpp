@@ -27,6 +27,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <argon2.h>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
@@ -34,7 +35,6 @@
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/config.hpp>
-#include <argon2.h>
 
 namespace beast = boost::beast;   // from <boost/beast.hpp>
 namespace http = beast::http;     // from <boost/beast/http.hpp>
@@ -123,9 +123,8 @@ std::string path_cat(beast::string_view base, beast::string_view path) {
 // request. The type of the response object depends on the
 // contents of the request, so the interface requires the
 // caller to pass a generic lambda for receiving the response.
-template<class Body, class Allocator, class Send>
-void
-handle_request(beast::string_view doc_root, http::request<Body, http::basic_fields<Allocator>> &&req, Send &&send, swp::ServerDB &db) {
+template <class Body, class Allocator, class Send>
+void handle_request(beast::string_view doc_root, http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send, swp::ServerDB& db) {
     // Returns a bad request response
     auto const bad_request = [&req](beast::string_view why) {
         http::response<http::string_body> res{http::status::bad_request, req.version()};
@@ -181,7 +180,8 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
         boost::string_view req_path = req.target().substr(4);
         http::response<http::string_body> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-        res.set(http::field::content_type, "application/text");;
+        res.set(http::field::content_type, "application/text");
+        ;
         res.keep_alive(req.keep_alive());
 
         const auto username = req["Username"];
@@ -196,8 +196,7 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
         } else if (req_path.starts_with("/login")) {
             req_path = req_path.substr(6);
             if (auto password = req["Password"]; !password.empty()) {
-                if (argon2i_verify(db.getPasswordHash(username.to_string()).c_str(), password.to_string().c_str(),
-                                   password.length()) != ARGON2_OK)
+                if (argon2i_verify(db.getPasswordHash(username.to_string()).c_str(), password.to_string().c_str(), password.length()) != ARGON2_OK)
                     return send(err_request("Bad authentication", http::status::forbidden));
                 password.clear();
                 SessionID<SESSIONID_SIZE> sessionId;
@@ -213,28 +212,28 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
         return send(std::move(res));
     }
 
-// Build the path to the requested file
+    // Build the path to the requested file
     std::string path = path_cat(doc_root, req.target());
     if (req.target().back() == '/')
         path.append("index.html");
 
-// Attempt to open the file
+    // Attempt to open the file
     beast::error_code ec;
     http::file_body::value_type body;
     body.open(path.c_str(), beast::file_mode::scan, ec);
 
-// Handle the case where the file doesn't exist
+    // Handle the case where the file doesn't exist
     if (ec == beast::errc::no_such_file_or_directory)
         return send(not_found(req.target()));
 
-// Handle an unknown error
+    // Handle an unknown error
     if (ec)
         return send(server_error(ec.message()));
 
-// Cache the size since we need it after the move
+    // Cache the size since we need it after the move
     auto const size = body.size();
 
-// Respond to HEAD request
+    // Respond to HEAD request
     if (req.method() == http::verb::head) {
         http::response<http::empty_body> res{http::status::ok, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
@@ -244,9 +243,8 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
         return send(std::move(res));
     }
 
-// Respond to GET request
-    http::response<http::file_body> res{std::piecewise_construct, std::make_tuple(std::move(body)),
-                                        std::make_tuple(http::status::ok, req.version())};
+    // Respond to GET request
+    http::response<http::file_body> res{std::piecewise_construct, std::make_tuple(std::move(body)), std::make_tuple(http::status::ok, req.version())};
     res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
     res.set(http::field::content_type, mime_type(path));
     res.content_length(size);
@@ -257,7 +255,7 @@ handle_request(beast::string_view doc_root, http::request<Body, http::basic_fiel
 //------------------------------------------------------------------------------
 
 // Report a failure
-void fail(beast::error_code ec, char const *what) {
+void fail(beast::error_code ec, char const* what) {
     // ssl::error::stream_truncated, also known as an SSL "short read",
     // indicates the peer closed the connection without performing the
     // required closing handshake (for example, Google does this to
@@ -286,25 +284,22 @@ class session : public std::enable_shared_from_this<session> {
     // This is the C++11 equivalent of a generic lambda.
     // The function object is used to send an HTTP message.
     struct send_lambda {
-        session &self_;
+        session& self_;
 
-        explicit send_lambda(session &self) : self_(self) {}
+        explicit send_lambda(session& self) : self_(self) {}
 
-        template<bool isRequest, class Body, class Fields>
-        void operator()(http::message<isRequest, Body, Fields> &&msg) const {
+        template <bool isRequest, class Body, class Fields> void operator()(http::message<isRequest, Body, Fields>&& msg) const {
             // The lifetime of the message has to extend
             // for the duration of the async operation so
             // we use a shared_ptr to manage it.
-            auto sp = std::make_shared<http::message<isRequest, Body, Fields>>
-                    (std::move(msg));
+            auto sp = std::make_shared<http::message<isRequest, Body, Fields>>(std::move(msg));
 
             // Store a type-erased version of the shared
             // pointer in the class to keep it alive.
             self_.res_ = sp;
 
             // Write the response
-            http::async_write(self_.stream_, *sp,
-                              beast::bind_front_handler(&session::on_write, self_.shared_from_this(), sp->need_eof()));
+            http::async_write(self_.stream_, *sp, beast::bind_front_handler(&session::on_write, self_.shared_from_this(), sp->need_eof()));
         }
     };
 
@@ -316,10 +311,10 @@ class session : public std::enable_shared_from_this<session> {
     send_lambda lambda_;
     std::reference_wrapper<swp::ServerDB> m_db;
 
-public:
+  public:
     // Take ownership of the socket
-    explicit session(tcp::socket &&socket, ssl::context &ctx, std::shared_ptr<std::string const> const &doc_root, swp::ServerDB &db)
-            : stream_(std::move(socket), ctx), doc_root_(doc_root), m_db(db), lambda_(*this) {}
+    explicit session(tcp::socket&& socket, ssl::context& ctx, std::shared_ptr<std::string const> const& doc_root, swp::ServerDB& db)
+        : stream_(std::move(socket), ctx), doc_root_(doc_root), m_db(db), lambda_(*this) {}
 
     // Start the asynchronous operation
     void run() {
@@ -335,8 +330,7 @@ public:
         beast::get_lowest_layer(stream_).expires_after(std::chrono::seconds(30));
 
         // Perform the SSL handshake
-        stream_.async_handshake(ssl::stream_base::server,
-                                beast::bind_front_handler(&session::on_handshake, shared_from_this()));
+        stream_.async_handshake(ssl::stream_base::server, beast::bind_front_handler(&session::on_handshake, shared_from_this()));
     }
 
     void on_handshake(beast::error_code ec) {
@@ -411,16 +405,15 @@ public:
 
 // Accepts incoming connections and launches the sessions
 class listener : public std::enable_shared_from_this<listener> {
-    net::io_context &ioc_;
-    ssl::context &ctx_;
+    net::io_context& ioc_;
+    ssl::context& ctx_;
     tcp::acceptor acceptor_;
     std::shared_ptr<std::string const> doc_root_;
     std::reference_wrapper<swp::ServerDB> db;
 
-public:
-    listener(net::io_context &ioc, ssl::context &ctx, const tcp::endpoint &endpoint,
-             std::shared_ptr<std::string const> doc_root, swp::ServerDB &db)
-            : ioc_(ioc), ctx_(ctx), acceptor_(ioc), doc_root_(std::move(doc_root)), db(db) {
+  public:
+    listener(net::io_context& ioc, ssl::context& ctx, const tcp::endpoint& endpoint, std::shared_ptr<std::string const> doc_root, swp::ServerDB& db)
+        : ioc_(ioc), ctx_(ctx), acceptor_(ioc), doc_root_(std::move(doc_root)), db(db) {
         beast::error_code ec;
 
         // Open the acceptor
@@ -455,11 +448,10 @@ public:
     // Start accepting incoming connections
     void run() { do_accept(); }
 
-private:
+  private:
     void do_accept() {
         // The new connection gets its own strand
-        acceptor_.async_accept(net::make_strand(ioc_),
-                               beast::bind_front_handler(&listener::on_accept, shared_from_this()));
+        acceptor_.async_accept(net::make_strand(ioc_), beast::bind_front_handler(&listener::on_accept, shared_from_this()));
     }
 
     void on_accept(beast::error_code ec, tcp::socket socket) {

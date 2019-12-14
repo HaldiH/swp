@@ -6,11 +6,11 @@
 #define SECUREWEBPASS_SESSION_ID_HPP
 #define SESSIONID_SIZE 128
 
-#include <string_view>
 #include <array>
+#include <ctime>
 #include <iostream>
 #include <random>
-#include <ctime>
+#include <string_view>
 
 constexpr auto mk_printable(uint8_t bits) -> char {
     constexpr std::string_view table = "0123465789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz=$";
@@ -18,18 +18,18 @@ constexpr auto mk_printable(uint8_t bits) -> char {
     return table[+bits];
 }
 
-template<std::size_t N, class = std::enable_if_t<(N % 8) == 0>>
-class SessionID {
+template <std::size_t N, class = std::enable_if_t<(N % 8) == 0>> class SessionID {
     inline static std::ranlux48 eng;
     inline static bool eng_init = false;
 
     std::array<char, N> storage{};
-public:
+
+  public:
     SessionID() {
         if (!eng_init) {
             eng_init = true;
             std::random_device rd;
-            std::seed_seq sseq({(int) rd(), (int) std::time(nullptr)});
+            std::seed_seq sseq({(int)rd(), (int)std::time(nullptr)});
             eng = std::ranlux48{sseq};
         }
 
@@ -42,9 +42,7 @@ public:
         }
     }
 
-    [[nodiscard]] constexpr std::string_view view() const noexcept {
-        return {storage.data(), storage.size()};
-    }
+    [[nodiscard]] constexpr std::string_view view() const noexcept { return {storage.data(), storage.size()}; }
 };
 
-#endif //SECUREWEBPASS_SESSION_ID_HPP
+#endif // SECUREWEBPASS_SESSION_ID_HPP
