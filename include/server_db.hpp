@@ -38,8 +38,6 @@ class ServerDB {
 
     int setSessionID(SessionID<SESSIONID_SIZE> sessionId, const std::string& username);
 
-    [[nodiscard]] std::string getSessionIDs(const std::string& username);
-
     bool checkSessionID(const std::string& username, const std::string& session_id);
 
     int setPassword(const std::string& username, const std::string& password);

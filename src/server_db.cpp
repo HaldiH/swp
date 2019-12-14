@@ -19,9 +19,10 @@ ServerDB::~ServerDB() {
 
 int ServerDB::open(const char* filename) {
     int rc;
-    rc = sqlite3_open(filename, &db);
-    if (rc)
+    if (rc = sqlite3_open(filename, &db); rc != SQLITE_OK) {
         std::cerr << "Can't open database: " << sqlite3_errmsg(db) << std::endl;
+        return rc;
+    }
 
     const std::string sql = "CREATE TABLE IF NOT EXISTS `users` ("
                             "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,"
@@ -39,6 +40,8 @@ int ServerDB::open(const char* filename) {
                             "`creation_date` TEXT NOT NULL,"
                             "`expiration_date` TEXT NOT NULL);";
     rc = exec_request(sql);
+    if (rc != SQLITE_OK)
+        std::cerr << "Can't create tables: " << sqlite3_errmsg(db) << std::endl;
     return rc;
 }
 
@@ -50,7 +53,7 @@ int ServerDB::open(const char* filename) {
 int ServerDB::setToken(const std::string& token, const std::string& username) {
     const std::string sql = "INSERT INTO users ('username','token') "
                             "VALUES (?,?);";
-    return select_row_request(sql, 2, std::vector<std::string>{username, token}).second;
+    return select_row_request(sql, 0, std::vector<std::string>{username, token}).second;
 }
 
 [[nodiscard]] bool ServerDB::tokenMatch(const std::string& username, const std::string& token_to_check) {
@@ -68,11 +71,6 @@ int ServerDB::setSessionID(SessionID<SESSIONID_SIZE> sessionId, const std::strin
     const std::string sql = "INSERT INTO session_ids (`owner`,`value`,`creation_date`,`expiration_date`) "
                             "VALUES (?,?,datetime('now'),datetime('now','+1 hour'));";
     return select_row_request(sql, 0, std::vector<std::string>{username, std::string(sessionId.view())}).second;
-}
-
-[[nodiscard]] std::string ServerDB::getSessionIDs(const std::string& username) {
-    const std::string sql = "SELECT `session_ids`,` FROM users WHERE `username` = ?;";
-    return select_row_request(sql, 0, std::vector<std::string>{username}).first;
 }
 
 bool ServerDB::checkSessionID(const std::string& username, const std::string& session_id) {
