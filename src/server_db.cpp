@@ -26,7 +26,7 @@ int ServerDB::open(const char* filename) {
 
     const std::string sql = "CREATE TABLE IF NOT EXISTS `users` ("
                             "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,"
-                            "`username` TEXT NOT NULL,"
+                            "`username` TEXT NOT NULL UNIQUE,"
                             "`password` TEXT NOT NULL,"
                             "`token` TEXT);"
                             "CREATE TABLE IF NOT EXISTS `passwords` ("
@@ -152,8 +152,10 @@ std::pair<std::string, int> ServerDB::select_row_request(const std::string& sql,
         }
     }
     rc = sqlite3_step(stmt);
-    if (rc != SQLITE_ROW)
+    if (rc != SQLITE_ROW) {
+        std::cerr << sqlite3_errmsg(db) << std::endl;
         return std::pair{std::string{}, rc};
+    }
     std::string row = reinterpret_cast<const char*>(sqlite3_column_text(stmt, iCol));
     rc = sqlite3_finalize(stmt);
     return {move(row), rc};

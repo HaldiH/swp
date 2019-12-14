@@ -8,8 +8,8 @@
 int main(int argc, char* argv[]) {
     swp::ServerDB db("server.db");
     std::string pwd = "password";
-    db.registerUser("hello world", pwd);
-    auto token = db.getToken("test");
+    int rc = db.registerUser("test", pwd);
+    std::cout << rc << std::endl;
     //    std::cout << argon2i_verify(db.getPasswordHash("test").c_str(), pwd.c_str(), pwd.size()) << std::endl;
     return 0;
 }
