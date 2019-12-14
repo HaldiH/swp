@@ -2,8 +2,10 @@
 #include "server_db.hpp"
 #include "http_server_async_ssl.hpp"
 
+constexpr auto DATABASE_FILENAME = "server.db";
+
 int main(int argc, char *argv[]) {
-    db.open("server.db");
+    swp::ServerDB db(DATABASE_FILENAME);
     auto const address = net::ip::make_address("0.0.0.0");
     auto const port = static_cast<unsigned short>(8080);
     auto const doc_root = std::make_shared<std::string>(".");
@@ -11,11 +13,9 @@ int main(int argc, char *argv[]) {
     auto const cert_path = "cert.pem", key_path = "key.pem", dh_path = "dh.pem";
     const swp::pki_path pkiPath{cert_path, key_path, dh_path};
 
-    std::cout << "Server listening on " << address.to_string() << ":" << port << " with " << threads;
-    if (threads == 1)
-        std::cout << " thread";
-    else
-        std::cout << " threads";
+    std::cout << "Server listening on " << address.to_string() << ":" << port << " with " << threads << " thread";
+    if (threads > 1)
+        std::cout << "s" << std::endl;
     std::cout << std::endl
               << "Serving " << doc_root.get()->c_str() << std::endl;
 
@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
     load_server_certificate(ctx, pkiPath);
 
     // Create and launch a listening port
-    std::make_shared<listener>(ioc, ctx, tcp::endpoint{address, port}, doc_root)->run();
+    std::make_shared<listener>(ioc, ctx, tcp::endpoint{address, port}, doc_root, db)->run();
 
     // Run the I/O service on the requested number of threads
     std::vector<std::thread> v;

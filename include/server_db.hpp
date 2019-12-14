@@ -8,12 +8,11 @@
 #include <argon2.h>
 #include <cstring>
 #include <boost/asio/deadline_timer.hpp>
-
 #include "session_id.hpp"
 
-#define HASHLEN 32
-#define SALTLEN 16
-#define ENCLEN 4 * HASHLEN
+constexpr auto HASHLEN = 32;
+constexpr auto SALTLEN = 16;
+constexpr auto ENCLEN = 4 * HASHLEN;
 
 namespace swp {
     template<class T>
@@ -24,7 +23,7 @@ namespace swp {
 
     class ServerDB {
     public:
-        ServerDB();
+        ServerDB() = default;
 
         explicit ServerDB(const char *filename);
 
@@ -63,5 +62,3 @@ namespace swp {
         [[nodiscard]] static std::string getEncodedPassword(const std::string &password);
     };
 }
-
-inline swp::ServerDB db;

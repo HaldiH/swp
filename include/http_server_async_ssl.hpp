@@ -125,7 +125,7 @@ std::string path_cat(beast::string_view base, beast::string_view path) {
 // caller to pass a generic lambda for receiving the response.
 template<class Body, class Allocator, class Send>
 void
-handle_request(beast::string_view doc_root, http::request<Body, http::basic_fields<Allocator>> &&req, Send &&send) {
+handle_request(beast::string_view doc_root, http::request<Body, http::basic_fields<Allocator>> &&req, Send &&send, swp::ServerDB &db) {
     // Returns a bad request response
     auto const bad_request = [&req](beast::string_view why) {
         http::response<http::string_body> res{http::status::bad_request, req.version()};
@@ -314,11 +314,12 @@ class session : public std::enable_shared_from_this<session> {
     http::request<http::string_body> req_;
     std::shared_ptr<void> res_;
     send_lambda lambda_;
+    std::reference_wrapper<swp::ServerDB> m_db;
 
 public:
     // Take ownership of the socket
-    explicit session(tcp::socket &&socket, ssl::context &ctx, std::shared_ptr<std::string const> const &doc_root)
-            : stream_(std::move(socket), ctx), doc_root_(doc_root), lambda_(*this) {}
+    explicit session(tcp::socket &&socket, ssl::context &ctx, std::shared_ptr<std::string const> const &doc_root, swp::ServerDB &db)
+            : stream_(std::move(socket), ctx), doc_root_(doc_root), m_db(db), lambda_(*this) {}
 
     // Start the asynchronous operation
     void run() {
@@ -368,7 +369,7 @@ public:
             return fail(ec, "read");
 
         // Send the response
-        handle_request(*doc_root_, std::move(req_), lambda_);
+        handle_request(*doc_root_, std::move(req_), lambda_, m_db);
     }
 
     void on_write(bool close, beast::error_code ec, std::size_t bytes_transferred) {
@@ -414,11 +415,12 @@ class listener : public std::enable_shared_from_this<listener> {
     ssl::context &ctx_;
     tcp::acceptor acceptor_;
     std::shared_ptr<std::string const> doc_root_;
+    std::reference_wrapper<swp::ServerDB> db;
 
 public:
-    listener(net::io_context &ioc, ssl::context &ctx, tcp::endpoint endpoint,
-             std::shared_ptr<std::string const> const &doc_root)
-            : ioc_(ioc), ctx_(ctx), acceptor_(ioc), doc_root_(doc_root) {
+    listener(net::io_context &ioc, ssl::context &ctx, const tcp::endpoint &endpoint,
+             std::shared_ptr<std::string const> doc_root, swp::ServerDB &db)
+            : ioc_(ioc), ctx_(ctx), acceptor_(ioc), doc_root_(std::move(doc_root)), db(db) {
         beast::error_code ec;
 
         // Open the acceptor
@@ -465,7 +467,7 @@ private:
             fail(ec, "accept");
         } else {
             // Create the session and run it
-            std::make_shared<session>(std::move(socket), ctx_, doc_root_)->run();
+            std::make_shared<session>(std::move(socket), ctx_, doc_root_, db)->run();
         }
 
         // Accept another connection

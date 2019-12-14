@@ -4,8 +4,6 @@
 #include "server_db.hpp"
 
 namespace swp {
-    ServerDB::ServerDB() = default;
-
     ServerDB::ServerDB(const char *filename) {
         int rc = open(filename);
         if (rc != SQLITE_OK)
@@ -83,7 +81,7 @@ namespace swp {
     bool ServerDB::checkSessionID(const std::string &username, const std::string &session_id) {
         const std::string sql =
                 "SELECT `value` FROM session_ids WHERE `owner`='" + username + "' AND `value`='" + session_id +
-                "' AND `expiration_date` BETWEEN datetime('now','-1 hour') AND datetime('now');";
+                "' AND DATETIME(`expiration_date`) > DATETIME('now')";
         const auto value = select_row_request(sql, 0);
         return !value.empty();
     }
@@ -132,7 +130,7 @@ namespace swp {
             rows.emplace_back(columns);
         }
 
-        SecValue<T> value = {rows, rc};
+        SecValue<T> value{rows, rc};
 
         sqlite3_finalize(stmt);
         return value;
@@ -156,7 +154,7 @@ namespace swp {
 
     [[nodiscard]] std::string ServerDB::getEncodedPassword(const std::string &password) {
         auto getSalt = [] {
-            static auto gen = [] {
+            static thread_local auto gen = [] {
                 std::random_device rd;
                 std::seed_seq sseq({(int) rd(), (int) std::time(nullptr)});
                 return std::mt19937_64{sseq};

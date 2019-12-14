@@ -6,7 +6,7 @@
 #include "server_db.hpp"
 
 int main(int argc, char *argv[]) {
-    db.open("server.db");
+    swp::ServerDB db("server.db");
     std::string pwd = "password";
     db.registerUser("test", pwd);
     std::cout << argon2i_verify(db.getPasswordHash("test").c_str(), pwd.c_str(), pwd.size()) << std::endl;
