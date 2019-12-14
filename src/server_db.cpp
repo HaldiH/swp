@@ -136,7 +136,6 @@ SecValue<std::string> ServerDB::select_request(const std::string& sql, const std
 }
 
 std::pair<std::string, int> ServerDB::select_row_request(const std::string& sql, int iCol, const std::vector<std::string>& args) {
-    std::cout << sql << std::endl;
     int rc;
     sqlite3_stmt* stmt = nullptr;
     rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -146,7 +145,6 @@ std::pair<std::string, int> ServerDB::select_row_request(const std::string& sql,
     }
     for (size_t i = 0; i < args.size(); i++) {
         auto& arg = args[i];
-        std::cout << arg << std::endl;
         rc = sqlite3_bind_text(stmt, i + 1, arg.data(), arg.size(), nullptr);
         if (rc != SQLITE_OK) {
             std::cerr << sqlite3_errmsg(db) << std::endl;
