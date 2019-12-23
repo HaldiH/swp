@@ -196,7 +196,7 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
         } else if (req_path.starts_with("/login")) {
             req_path = req_path.substr(6);
             if (auto password = req["Password"]; !password.empty()) {
-                if (argon2i_verify(db.getPasswordHash(username.to_string()).c_str(), password.to_string().c_str(), password.length()) != ARGON2_OK)
+                if (argon2i_verify(db.getPasswordHash(username.to_string()).data(), std::string(password).data(), password.length()) != ARGON2_OK)
                     return send(err_request("Bad authentication", http::status::forbidden));
                 password.clear();
                 SessionID<SESSIONID_SIZE> sessionId;

@@ -30,31 +30,31 @@ class ServerDB {
 
     int open(const char* filename);
 
-    [[nodiscard]] SecValue<std::string> getToken(const std::string& username);
+    [[nodiscard]] SecValue<std::string_view> getToken(std::string_view username);
 
-    int setToken(const std::string& token, const std::string& username);
+    int setToken(std::string_view token, std::string_view username);
 
-    [[nodiscard]] bool tokenMatch(const std::string& username, const std::string& token_to_check);
+    [[nodiscard]] bool tokenMatch(std::string_view username, std::string_view token_to_check);
 
-    int setSessionID(SessionID<SESSIONID_SIZE> sessionId, const std::string& username);
+    int setSessionID(SessionID<SESSIONID_SIZE> sessionId, std::string_view username);
 
-    bool checkSessionID(const std::string& username, const std::string& session_id);
+    bool checkSessionID(std::string_view username, std::string_view session_id);
 
-    int setPassword(const std::string& username, const std::string& password);
+    int setPassword(std::string_view username, std::string_view password);
 
-    int registerUser(const std::string& username, const std::string& password);
+    int registerUser(std::string_view username, std::string_view password);
 
-    [[nodiscard]] std::string getPasswordHash(const std::string& username);
+    [[nodiscard]] std::string_view getPasswordHash(std::string_view username);
 
   private:
     sqlite3* db{};
 
-    int exec_request(const std::string& sql);
+    int exec_request(std::string_view sql);
 
-    SecValue<std::string> select_request(const std::string& sql, const std::vector<std::string>& args);
+    SecValue<std::string_view> select_request(std::string_view sql, std::vector<std::string_view> args);
 
-    std::pair<std::string, int> select_row_request(const std::string& sql, int iCol, const std::vector<std::string>& args);
+    std::pair<std::string_view, int> select_row_request(std::string_view sql, int iCol, std::vector<std::string_view> args);
 
-    [[nodiscard]] static std::string getEncodedPassword(const std::string& password);
+    [[nodiscard]] std::string getEncodedPassword(std::string_view password);
 };
 } // namespace swp

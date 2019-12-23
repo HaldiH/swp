@@ -43,3 +43,8 @@
 # Output build directory
 build
 cmake-build-*
+
+# SSL Certificates
+*.pem
+*.key
+*.crt
