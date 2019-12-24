@@ -30,7 +30,7 @@ class ServerDB {
 
     int open(const char* filename);
 
-    [[nodiscard]] SecValue<std::string_view> getToken(std::string_view username);
+    [[nodiscard]] SecValue<std::string> getToken(std::string_view username);
 
     int setToken(std::string_view token, std::string_view username);
 
@@ -46,15 +46,15 @@ class ServerDB {
 
     [[nodiscard]] std::string_view getPasswordHash(std::string_view username);
 
-  private:
+//  private:
     sqlite3* db{};
 
     int exec_request(std::string_view sql);
 
-    SecValue<std::string_view> select_request(std::string_view sql, std::vector<std::string_view> args);
+    SecValue<std::string> request(std::string_view sql, const std::vector<std::string_view>& args);
 
-    std::pair<std::string_view, int> select_row_request(std::string_view sql, int iCol, std::vector<std::string_view> args);
+    std::pair<std::string, int> first_row_request(std::string_view sql, int iCol, const std::vector<std::string_view>& args);
 
-    [[nodiscard]] std::string getEncodedPassword(std::string_view password);
+    [[nodiscard]] static std::string getEncodedPassword(std::string_view password);
 };
 } // namespace swp

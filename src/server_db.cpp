@@ -47,15 +47,15 @@ int ServerDB::open(const char* filename) {
     return rc;
 }
 
-[[nodiscard]] SecValue<std::string_view> ServerDB::getToken(std::string_view username) {
+[[nodiscard]] SecValue<std::string> ServerDB::getToken(std::string_view username) {
     constexpr auto sql = "SELECT `token` FROM users WHERE username = ?"sv;
-    return select_request(sql.data(), std::vector<std::string_view>{});
+    return request(sql.data(), std::vector<std::string_view>{});
 }
 
 int ServerDB::setToken(std::string_view token, std::string_view username) {
     constexpr auto sql = "INSERT INTO users ('username','token') "
                          "VALUES (?,?);"sv;
-    return select_row_request(sql.data(), 0, std::vector<std::string_view>{username, token}).second;
+    return first_row_request(sql.data(), 0, std::vector<std::string_view>{username, token}).second;
 }
 
 [[nodiscard]] bool ServerDB::tokenMatch(std::string_view username, std::string_view token_to_check) {
@@ -72,29 +72,29 @@ int ServerDB::setToken(std::string_view token, std::string_view username) {
 int ServerDB::setSessionID(SessionID<SESSIONID_SIZE> sessionId, std::string_view username) {
     constexpr auto sql = "INSERT INTO session_ids (`owner`,`value`,`creation_date`,`expiration_date`) "
                          "VALUES (?,?,datetime('now'),datetime('now','+1 hour'));"sv;
-    return select_row_request(sql.data(), 0, std::vector<std::string_view>{username, sessionId.view().data()}).second;
+    return first_row_request(sql.data(), 0, std::vector<std::string_view>{username, sessionId.view().data()}).second;
 }
 
 bool ServerDB::checkSessionID(std::string_view username, std::string_view session_id) {
     constexpr auto sql = "SELECT `value` FROM session_ids WHERE `owner` = ? AND `value` = ? AND DATETIME(`expiration_date`) > DATETIME('now')"sv;
-    const auto value = select_row_request(sql.data(), 0, std::vector<std::string_view>{username, session_id});
+    const auto value = first_row_request(sql.data(), 0, std::vector<std::string_view>{username, session_id});
     return !value.first.empty();
 }
 
 int ServerDB::setPassword(std::string_view username, std::string_view password) {
     constexpr auto sql = "UPDATE users SET `password` = ? WHERE `username` = ?;"sv;
-    return select_row_request(sql.data(), 0, std::vector<std::string_view>{password, username}).second;
+    return first_row_request(sql.data(), 0, std::vector<std::string_view>{password, username}).second;
 }
 
 int ServerDB::registerUser(std::string_view username, std::string_view password) {
     constexpr auto sql = "INSERT INTO users (username,password) VALUES (?,?);"sv;
     auto test = getEncodedPassword(password);
-    return select_row_request(sql.data(), 0, std::vector<std::string_view>{username, test}).second;
+    return first_row_request(sql.data(), 0, std::vector<std::string_view>{username, test}).second;
 }
 
 [[nodiscard]] std::string_view ServerDB::getPasswordHash(std::string_view username) {
     constexpr auto sql = "SELECT `password` FROM users WHERE `username` = ?;"sv;
-    return select_row_request(sql.data(), 0, std::vector<std::string_view>{username}).first;
+    return first_row_request(sql.data(), 0, std::vector<std::string_view>{username}).first;
 }
 
 int ServerDB::exec_request(std::string_view sql) {
@@ -105,41 +105,43 @@ int ServerDB::exec_request(std::string_view sql) {
     return rc;
 }
 
-SecValue<std::string_view> ServerDB::select_request(std::string_view sql, std::vector<std::string_view> args) {
+SecValue<std::string> ServerDB::request(std::string_view sql, const std::vector<std::string_view>& args) {
     sqlite3_stmt* stmt = nullptr;
     int rc = sqlite3_prepare_v2(db, sql.data(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK) {
         std::cerr << sqlite3_errmsg(db) << std::endl;
-        return SecValue<std::string_view>{std::vector<std::vector<std::string_view>>{}, rc};
+        return SecValue<std::string>{std::vector<std::vector<std::string>>{}, rc};
     }
-    int i = 0;
-    for (auto& arg : args) {
-        rc = sqlite3_bind_text(stmt, ++i, arg.data(), arg.size(), nullptr);
-        if (rc != SQLITE_OK) {
-            std::cerr << sqlite3_errmsg(db) << std::endl;
-            return SecValue<std::string_view>{std::vector<std::vector<std::string_view>>{}, rc};
+    {
+        int i = 0;
+        for (auto& arg : args) {
+            rc = sqlite3_bind_text(stmt, ++i, arg.data(), arg.size(), nullptr);
+            if (rc != SQLITE_OK) {
+                std::cerr << sqlite3_errmsg(db) << std::endl;
+                return SecValue<std::string>{std::vector<std::vector<std::string>>{}, rc};
+            }
         }
     }
 
-    std::vector<std::vector<std::string_view>> rows{};
+    std::vector<std::vector<std::string>> rows{};
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        std::vector<std::string_view> columns{};
-        columns.reserve(args.size());
-        for (int i = 0; i < args.size(); i++) {
-            if (const auto tmp = sqlite3_column_text(stmt, i); tmp) {
+        std::vector<std::string> columns{};
+        auto nCol = sqlite3_column_count(stmt);
+        columns.reserve(nCol);
+        for (int i = 0; i < nCol; i++) {
+            if (const auto tmp = sqlite3_column_text(stmt, i); tmp)
                 columns.emplace_back(reinterpret_cast<const char*>(tmp));
-            }
         }
         rows.emplace_back(std::move(columns));
     }
 
-    SecValue<std::string_view> value{std::move(rows), rc};
+    SecValue<std::string> value{std::move(rows), rc};
 
     sqlite3_finalize(stmt);
-    return value;
+    return std::move(value);
 }
 
-std::pair<std::string_view, int> ServerDB::select_row_request(std::string_view sql, int iCol, std::vector<std::string_view> args) {
+std::pair<std::string, int> ServerDB::first_row_request(std::string_view sql, int iCol, const std::vector<std::string_view>& args) {
     int rc;
     sqlite3_stmt* stmt = nullptr;
     rc = sqlite3_prepare_v2(db, sql.data(), -1, &stmt, nullptr);
@@ -152,15 +154,16 @@ std::pair<std::string_view, int> ServerDB::select_row_request(std::string_view s
         rc = sqlite3_bind_text(stmt, i++, arg.data(), arg.size(), nullptr);
         if (rc != SQLITE_OK) {
             std::cerr << sqlite3_errmsg(db) << std::endl;
-            return std::pair{std::string_view{}, rc};
+            return std::pair{std::string{}, rc};
         }
     }
     rc = sqlite3_step(stmt);
-    if (rc != SQLITE_DONE) {
+    if (rc != SQLITE_DONE && rc != SQLITE_ROW) {
         std::cerr << sqlite3_errmsg(db) << std::endl;
-        return std::pair{std::string_view{}, rc};
+        return std::pair{std::string{}, rc};
     }
-    const std::string_view row = reinterpret_cast<const char*>(sqlite3_column_text(stmt, iCol));
+    auto tmp = sqlite3_column_text(stmt, iCol);
+    std::string row = tmp ? reinterpret_cast<const char*>(tmp) : std::string{};
     rc = sqlite3_finalize(stmt);
     return {move(row), rc};
 }
