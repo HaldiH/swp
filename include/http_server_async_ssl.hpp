@@ -15,7 +15,6 @@
 
 #pragma once
 
-#include "server_certificate.hpp"
 #include "server_db.hpp"
 #include "session_id.hpp"
 

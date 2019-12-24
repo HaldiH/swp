@@ -192,8 +192,7 @@ std::pair<std::string, int> ServerDB::first_row_request(std::string_view sql, in
     uint32_t m_cost = (1 << 16); // 64 mebibytes memory usage
     uint32_t parallelism = 1;    // number of threads and lanes
 
-    int rc;
-    rc = argon2i_hash_encoded(t_cost, m_cost, parallelism, password.data(), password.size(), getSalt().data(), SALTLEN, HASHLEN, encoded.data(),
+    int rc = argon2i_hash_encoded(t_cost, m_cost, parallelism, password.data(), password.size(), getSalt().data(), SALTLEN, HASHLEN, encoded.data(),
                               ENCLEN);
     if (rc != ARGON2_OK) {
         std::cerr << "Error occurred while encoding password: " << rc << std::endl;

@@ -46,7 +46,7 @@ class ServerDB {
 
     [[nodiscard]] std::string_view getPasswordHash(std::string_view username);
 
-//  private:
+  private:
     sqlite3* db{};
 
     int exec_request(std::string_view sql);
