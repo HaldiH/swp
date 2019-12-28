@@ -55,7 +55,7 @@ int ServerDB::open(const char* filename) {
     return rc;
 }
 
-[[nodiscard]] SecValue<std::string> ServerDB::getToken(std::string_view username) {
+ SecValue<std::string> ServerDB::getToken(std::string_view username) {
     constexpr auto sql = "SELECT `token` FROM users WHERE username = ?"sv;
     return request(sql.data(), std::vector<std::string_view>{});
 }
@@ -66,7 +66,7 @@ int ServerDB::setToken(std::string_view token, std::string_view username) {
     return first_row_request(sql.data(), 0, std::vector<std::string_view>{username, token}).second;
 }
 
-[[nodiscard]] bool ServerDB::tokenMatch(std::string_view username, std::string_view token_to_check) {
+ bool ServerDB::tokenMatch(std::string_view username, std::string_view token_to_check) {
     auto res = getToken(username);
     if (res.sqlite_code != SQLITE_OK)
         return false;
@@ -80,7 +80,7 @@ int ServerDB::setToken(std::string_view token, std::string_view username) {
 int ServerDB::setSessionID(SessionID<SESSIONID_SIZE> sessionId, std::string_view username) {
     constexpr auto sql = "INSERT INTO session_ids (`owner`,`value`,`creation_date`,`expiration_date`) "
                          "VALUES (?,?,datetime('now'),datetime('now','+1 hour'));"sv;
-    return first_row_request(sql.data(), 0, std::vector<std::string_view>{username, sessionId.view().data()}).second;
+    return first_row_request(sql.data(), 0, std::vector<std::string_view>{username, sessionId.view()}).second;
 }
 
 bool ServerDB::checkSessionID(std::string_view username, std::string_view session_id) {
@@ -104,7 +104,7 @@ int ServerDB::registerUser(std::string_view username, std::string_view password)
     return first_row_request(sql.data(), 0, std::vector<std::string_view>{username, value.first}).second;
 }
 
-[[nodiscard]] std::string ServerDB::getPasswordHash(std::string_view username) {
+ std::string ServerDB::getPasswordHash(std::string_view username) {
     constexpr auto sql = "SELECT `password` FROM users WHERE `username` = ?;"sv;
     auto value = first_row_request(sql.data(), 0, std::vector<std::string_view>{username});
     if (value.second != 0)
@@ -112,7 +112,23 @@ int ServerDB::registerUser(std::string_view username, std::string_view password)
     return value.first;
 }
 
-[[nodiscard]] std::pair<BLOB_Data, int> ServerDB::getVault(std::string_view username, std::string_view vault_name) {
+std::vector<std::string> ServerDB::listVault(std::string_view owner) {
+    const auto err = [&](int rc) {
+        error(rc);
+        return std::vector<std::string>{};
+    };
+    constexpr auto sql = "SELECT `name` FROM vaults WHERE `owner` = ?";
+    auto res = request(sql, std::vector<std::string_view>{owner});
+    if (res.sqlite_code != SQLITE_OK)
+        return err(res.sqlite_code);
+    std::vector<std::string> rows;
+    for (auto &val : res.value) {
+        rows.emplace_back(val[0]);
+    }
+    return rows;
+}
+
+std::pair<BLOB_Data, int> ServerDB::getVault(std::string_view username, std::string_view vault_name) {
     const auto err = [&](int rc) { return std::make_pair(BLOB_Data{}, error(rc)); };
     constexpr auto sql = "SELECT `data` FROM vaults WHERE `owner` = ? AND `name` = ?;"sv;
     int rc;
@@ -127,8 +143,10 @@ int ServerDB::registerUser(std::string_view username, std::string_view password)
     if (rc != SQLITE_OK)
         return err(rc);
     rc = sqlite3_step(stmt);
-    if (!(rc == SQLITE_DONE || rc == SQLITE_ROW))
+    if (rc != SQLITE_ROW) {
+        std::cerr << "Cannot find the requested vault" << std::endl;
         return err(rc);
+    }
 
     const auto size = sqlite3_column_bytes(stmt, 0);
     const auto* blob = static_cast<const uint8_t*>(sqlite3_column_blob(stmt, 0));
@@ -238,7 +256,7 @@ std::pair<std::string, int> ServerDB::first_row_request(std::string_view sql, in
     return make_pair(move(row), rc);
 }
 
-[[nodiscard]] std::pair<std::string, int> ServerDB::getEncodedPassword(std::string_view password) {
+ std::pair<std::string, int> ServerDB::getEncodedPassword(std::string_view password) {
     auto const err = [&](int rc) {
         std::cerr << "Error occurred while encoding password: " << rc << std::endl;
         return make_pair(std::string{}, rc);

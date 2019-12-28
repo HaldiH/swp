@@ -16,12 +16,14 @@ int main(int argc, char* argv[]) {
     std::cout << rc << std::endl;
     rc = db.storeVault("test", "test_vault", swp::BLOB_Data{84, 101, 115, 116});
     std::cout << rc << std::endl;
+    rc = db.storeVault("test", "test_vault2", swp::BLOB_Data{84, 101, 115, 116});
+    std::cout << rc << std::endl;
+    rc = db.storeVault("test", "test_vault3", swp::BLOB_Data{84, 101, 115, 116});
+    std::cout << rc << std::endl;
     rc = db.updateVault("test_vault", "test", swp::BLOB_Data{72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33});
     std::cout << rc << std::endl;
     auto data = db.getVault("test", "test_vault").first;
-    for (auto &c : data) {
-        std::cout << c;
-    }
+    std::cout << std::string(data.begin(), data.end());
 
     // Make request and first_row_request public before testing
     /*constexpr std::string_view sql = "SELECT * FROM users;";

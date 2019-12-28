@@ -183,19 +183,29 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
         ;
         res.keep_alive(req.keep_alive());
 
-        const auto username = req["Username"];
+        auto bsv = req["Username"];
+        std::string_view username = std::string_view{bsv.data(), bsv.size()};
 
         std::string buffer;
-        if (const auto sessionid = req["sessionid"]; !sessionid.empty()) {
-            if (db.checkSessionID(username.to_string(), sessionid.to_string())) {
+        if (bsv = req["sessionid"]; !bsv.empty()) {
+            auto sessionid = std::string_view{bsv.data(), bsv.size()};
+            if (db.checkSessionID(username, sessionid)) {
                 if (const std::string& substr = "/vault"; req_path.starts_with(substr)) {
                     req_path = req_path.substr(substr.length());
-                    if (!req_path.empty() && req_path.substr(0, 1) == "/") {
-                        auto vault_name = req_path.substr(1);
-                        auto vault = db.getVault(std::string_view{username.data(), username.length()},
-                                                 std::string_view{vault_name.data(), vault_name.length()})
-                                         .first;
-                        buffer = std::string(vault.begin(), vault.end());
+                    if (req_path.empty() || req_path == "/") {
+                        for (auto& vault : db.listVault(username)) {
+                            buffer += vault + '\n';
+                        }
+                    } else if (req_path.substr(0, 1) == "/") {
+                        if (auto vault_name = req_path.substr(1); !vault_name.empty()) {
+                            auto pair = db.getVault(username, std::string_view{vault_name.data(), vault_name.length()});
+                            if (pair.second == 0) {
+                                auto vault = pair.first;
+                                buffer = std::string(vault.begin(), vault.end());
+                            } else {
+                                buffer = "Cannot find the requested vault\n";
+                            }
+                        }
                     }
                 }
             } else
@@ -203,12 +213,11 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
         } else if (const std::string& substr = "/login"; req_path.starts_with(substr)) {
             req_path = req_path.substr(substr.length());
             if (auto password = req["Password"]; !password.empty()) {
-                if (argon2i_verify(db.getPasswordHash(std::string_view{username.data(), username.length()}).data(), password.data(),
-                                   password.size()) != ARGON2_OK)
+                if (argon2i_verify(db.getPasswordHash(username).data(), password.data(), password.size()) != ARGON2_OK)
                     return send(err_request("Bad authentication", http::status::forbidden));
                 password.clear();
                 SessionID<SESSIONID_SIZE> sessionId;
-                db.setSessionID(sessionId, username.to_string());
+                db.setSessionID(sessionId, username);
                 res.set(http::field::set_cookie, "sessionid=" + std::string(sessionId.view()));
                 buffer = std::string("OK");
             } else

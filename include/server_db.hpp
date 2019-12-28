@@ -48,6 +48,8 @@ class ServerDB {
 
     [[nodiscard]] std::string getPasswordHash(std::string_view username);
 
+    [[nodiscard]] std::vector<std::string> listVault(std::string_view owner);
+
     [[nodiscard]] std::pair<BLOB_Data, int> getVault(std::string_view username, std::string_view vault_name);
 
     int storeVault(std::string_view username, std::string_view vault_name, const BLOB_Data& data);

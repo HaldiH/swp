@@ -14,7 +14,7 @@
 constexpr auto SESSIONID_SIZE = 128;
 
 constexpr auto mk_printable(uint8_t bits) -> char {
-    constexpr std::string_view table = "0123465789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz=$";
+    constexpr std::string_view table = "0123465789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz=-";
     static_assert(table.size() == 64);
     return table[+bits];
 }
