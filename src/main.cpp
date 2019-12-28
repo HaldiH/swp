@@ -8,6 +8,8 @@ constexpr auto DATABASE_FILENAME = "server.db";
 
 namespace bfs = boost::filesystem;
 
+using namespace std::literals;
+
 inline void load_server_certificate(boost::asio::ssl::context& ctx, std::string_view cert_path, std::string_view key_path, std::string_view dh_path) {
     constexpr auto getFileData = [](std::string_view path) {
         bfs::path p{path.data()};
@@ -44,7 +46,7 @@ int main(int argc, char* argv[]) {
     auto const port = static_cast<unsigned short>(8080);
     auto const doc_root = std::make_shared<std::string>(".");
     auto const threads = std::max<int>(1, atoi(argv[4])); // NOLINT(cert-err34-c)
-    auto constexpr cert_path = "cert.pem", key_path = "key.pem", dh_path = "dh.pem";
+    auto constexpr cert_path = "cert.pem"sv, key_path = "key.pem"sv, dh_path = "dh.pem"sv;
 
     // The io_context is required for all I/O
     net::io_context ioc{threads};

@@ -15,6 +15,8 @@ constexpr auto HASHLEN = 32;
 constexpr auto SALTLEN = 16;
 constexpr auto ENCLEN = 4 * HASHLEN;
 
+using BLOB_Data = std::vector<uint8_t>;
+
 template <class T> struct SecValue {
     std::vector<std::vector<T>> value;
     int sqlite_code;
@@ -46,8 +48,16 @@ class ServerDB {
 
     [[nodiscard]] std::string_view getPasswordHash(std::string_view username);
 
+    [[nodiscard]] std::pair<BLOB_Data, int> getVault(std::string_view username, std::string_view vault_name);
+
+    int storeVault(std::string_view username, std::string_view vault_name, const BLOB_Data& data);
+
+    int updateVault(std::string_view vault_name, std::string_view owner, const BLOB_Data& data);
+
   private:
     sqlite3* db{};
+
+    int error(int rc);
 
     int exec_request(std::string_view sql);
 
@@ -55,6 +65,6 @@ class ServerDB {
 
     std::pair<std::string, int> first_row_request(std::string_view sql, int iCol, const std::vector<std::string_view>& args);
 
-    [[nodiscard]] static std::string getEncodedPassword(std::string_view password);
+    [[nodiscard]] static std::pair<std::string, int> getEncodedPassword(std::string_view password);
 };
 } // namespace swp

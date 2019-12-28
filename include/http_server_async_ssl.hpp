@@ -187,13 +187,19 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
 
         std::string buffer;
         if (const auto sessionid = req["sessionid"]; !sessionid.empty()) {
-            const auto b = db.checkSessionID(username.to_string(), sessionid.to_string());
-            if (b) {
-                buffer = std::string("Logged in");
+            if (db.checkSessionID(username.to_string(), sessionid.to_string())) {
+                if (const std::string& substr = "/vault"; req_path.starts_with(substr)) {
+                    req_path = req_path.substr(substr.length());
+                    if (!req_path.empty() && req_path.substr(0, 1) == "/") {
+                        auto vault_name = req_path.substr(1);
+//                        buffer = db.getVault(std::string_view{username.data(), username.length()},
+//                                             std::string_view{vault_name.data(), vault_name.length()});
+                    }
+                }
             } else
                 return send(err_request("Bad session ID", http::status::forbidden));
-        } else if (req_path.starts_with("/login")) {
-            req_path = req_path.substr(6);
+        } else if (const std::string& substr = "/login"; req_path.starts_with(substr)) {
+            req_path = req_path.substr(substr.length());
             if (auto password = req["Password"]; !password.empty()) {
                 if (argon2i_verify(db.getPasswordHash(username.to_string()).data(), std::string(password).data(), password.length()) != ARGON2_OK)
                     return send(err_request("Bad authentication", http::status::forbidden));
