@@ -130,6 +130,7 @@ std::vector<std::string> ServerDB::listVault(std::string_view owner) {
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         rows.emplace_back(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
     }
+    sqlite3_finalize(stmt);
     return rows;
 }
 
