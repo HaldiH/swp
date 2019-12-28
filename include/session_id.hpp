@@ -4,13 +4,14 @@
 
 #ifndef SECUREWEBPASS_SESSION_ID_HPP
 #define SECUREWEBPASS_SESSION_ID_HPP
-#define SESSIONID_SIZE 128
 
 #include <array>
 #include <ctime>
 #include <iostream>
 #include <random>
 #include <string_view>
+
+constexpr auto SESSIONID_SIZE = 128;
 
 constexpr auto mk_printable(uint8_t bits) -> char {
     constexpr std::string_view table = "0123465789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz=$";

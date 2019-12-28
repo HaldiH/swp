@@ -46,7 +46,7 @@ class ServerDB {
 
     int registerUser(std::string_view username, std::string_view password);
 
-    [[nodiscard]] std::string_view getPasswordHash(std::string_view username);
+    [[nodiscard]] std::string getPasswordHash(std::string_view username);
 
     [[nodiscard]] std::pair<BLOB_Data, int> getVault(std::string_view username, std::string_view vault_name);
 

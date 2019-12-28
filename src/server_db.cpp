@@ -104,9 +104,12 @@ int ServerDB::registerUser(std::string_view username, std::string_view password)
     return first_row_request(sql.data(), 0, std::vector<std::string_view>{username, value.first}).second;
 }
 
-[[nodiscard]] std::string_view ServerDB::getPasswordHash(std::string_view username) {
+[[nodiscard]] std::string ServerDB::getPasswordHash(std::string_view username) {
     constexpr auto sql = "SELECT `password` FROM users WHERE `username` = ?;"sv;
-    return first_row_request(sql.data(), 0, std::vector<std::string_view>{username}).first;
+    auto value = first_row_request(sql.data(), 0, std::vector<std::string_view>{username});
+    if (value.second != 0)
+        return std::string{};
+    return value.first;
 }
 
 [[nodiscard]] std::pair<BLOB_Data, int> ServerDB::getVault(std::string_view username, std::string_view vault_name) {
