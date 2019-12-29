@@ -93,7 +93,10 @@ bool ServerDB::checkSessionID(std::string_view username, std::string_view sessio
 
 int ServerDB::setPassword(std::string_view username, std::string_view password) {
     constexpr auto sql = "UPDATE users SET `password` = ? WHERE `username` = ?;"sv;
-    return first_row_request(sql.data(), 0, std::vector<std::string_view>{password, username}).second;
+    auto value = getEncodedPassword(password);
+    if (value.second != 0)
+        return value.second;
+    return first_row_request(sql.data(), 0, std::vector<std::string_view>{value.first, username}).second;
 }
 
 int ServerDB::registerUser(std::string_view username, std::string_view password) {
