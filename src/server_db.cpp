@@ -32,24 +32,24 @@ int ServerDB::open(const char* filename) {
     }
 
     constexpr auto sql = "CREATE TABLE IF NOT EXISTS `users` ("
-                         "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,"
+//                         "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,"
                          "`username` TEXT NOT NULL UNIQUE,"
                          "`password` TEXT NOT NULL,"
                          "`token` TEXT);"
                          "CREATE TABLE IF NOT EXISTS `vaults` ("
-                         "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,"
+//                         "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,"
                          "`name` TEXT NOT NULL,"
                          "`owner` TEXT NOT NULL,"
                          "`group` TEXT,"
                          "`data` BLOB,"
                          "UNIQUE ( `name`, `owner` ) ON CONFLICT FAIL);"
                          "CREATE TABLE IF NOT EXISTS `session_ids` ("
-                         "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,"
+//                         "`id` INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,"
                          "`owner` TEXT NOT NULL,"
                          "`value` TEXT NOT NULL,"
                          "`creation_date` TEXT NOT NULL,"
                          "`expiration_date` TEXT NOT NULL);"sv;
-    rc = exec_request(sql.data());
+    rc = exec_request(sql);
     if (rc != SQLITE_OK)
         std::cerr << "Can't create tables: " << sqlite3_errmsg(db) << std::endl;
     return rc;
@@ -57,13 +57,13 @@ int ServerDB::open(const char* filename) {
 
 SecValue<std::string> ServerDB::getToken(std::string_view username) {
     constexpr auto sql = "SELECT `token` FROM users WHERE username = ?"sv;
-    return request(sql.data(), std::vector<std::string_view>{});
+    return request(sql, std::vector<std::string_view>{});
 }
 
 int ServerDB::setToken(std::string_view token, std::string_view username) {
     constexpr auto sql = "INSERT INTO users ('username','token') "
                          "VALUES (?,?);"sv;
-    return first_row_request(sql.data(), 0, std::vector<std::string_view>{username, token}).second;
+    return first_row_request(sql, 0, std::vector<std::string_view>{username, token}).second;
 }
 
 bool ServerDB::tokenMatch(std::string_view username, std::string_view token_to_check) {
@@ -80,15 +80,20 @@ bool ServerDB::tokenMatch(std::string_view username, std::string_view token_to_c
 int ServerDB::setSessionID(SessionID<SESSIONID_SIZE> sessionId, std::string_view username) {
     constexpr auto sql = "INSERT INTO session_ids (`owner`,`value`,`creation_date`,`expiration_date`) "
                          "VALUES (?,?,datetime('now'),datetime('now','+1 hour'));"sv;
-    return first_row_request(sql.data(), 0, std::vector<std::string_view>{username, sessionId.view()}).second;
+    return first_row_request(sql, 0, std::vector<std::string_view>{username, sessionId.view()}).second;
 }
 
-bool ServerDB::checkSessionID(std::string_view username, std::string_view session_id) {
-    constexpr auto sql = "SELECT `value` FROM session_ids WHERE `owner` = ? AND `value` = ? AND DATETIME(`expiration_date`) > DATETIME('now')"sv;
-    const auto value = first_row_request(sql.data(), 0, std::vector<std::string_view>{username, session_id});
+bool ServerDB::isSessionIdValid(std::string_view username, std::string_view session_id) {
+    constexpr auto sql = "SELECT `value` FROM session_ids WHERE `owner` = ? AND `value` = ? AND DATETIME(`expiration_date`) >= DATETIME('now')"sv;
+    const auto value = first_row_request(sql, 0, std::vector<std::string_view>{username, session_id});
     if (value.second != 0)
         return false;
     return !value.first.empty();
+}
+
+int ServerDB::cleanSessionID() {
+    constexpr auto sql = "DELETE FROM session_ids WHERE DATETIME(`expiration_date`) < DATETIME('now');"sv;
+    return exec_request(sql);
 }
 
 int ServerDB::setPassword(std::string_view username, std::string_view password) {
@@ -96,7 +101,7 @@ int ServerDB::setPassword(std::string_view username, std::string_view password) 
     auto value = getEncodedPassword(password);
     if (value.second != 0)
         return value.second;
-    return first_row_request(sql.data(), 0, std::vector<std::string_view>{value.first, username}).second;
+    return first_row_request(sql, 0, std::vector<std::string_view>{value.first, username}).second;
 }
 
 int ServerDB::registerUser(std::string_view username, std::string_view password) {
@@ -104,12 +109,12 @@ int ServerDB::registerUser(std::string_view username, std::string_view password)
     auto value = getEncodedPassword(password);
     if (value.second != 0)
         return value.second;
-    return first_row_request(sql.data(), 0, std::vector<std::string_view>{username, value.first}).second;
+    return first_row_request(sql, 0, std::vector<std::string_view>{username, value.first}).second;
 }
 
 std::string ServerDB::getPasswordHash(std::string_view username) {
     constexpr auto sql = "SELECT `password` FROM users WHERE `username` = ?;"sv;
-    auto value = first_row_request(sql.data(), 0, std::vector<std::string_view>{username});
+    auto value = first_row_request(sql, 0, std::vector<std::string_view>{username});
     if (value.second != 0)
         return std::string{};
     return value.first;

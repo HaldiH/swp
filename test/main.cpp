@@ -8,6 +8,8 @@
 int main(int argc, char* argv[]) {
     swp::ServerDB db("server.db");
     int rc;
+
+    db.cleanSessionID();
     std::string_view pwd1 = "password";
     std::string_view pwd2 = "hello";
     rc = db.registerUser("test", pwd1);
@@ -22,8 +24,8 @@ int main(int argc, char* argv[]) {
     std::cout << rc << std::endl;
     rc = db.updateVault("test_vault", "test", swp::BLOB_Data{72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33});
     std::cout << rc << std::endl;
-    auto data = db.getVault("test", "test_vault").first;
-    std::cout << std::string(data.begin(), data.end());
+//    auto data = db.getVault("test", "test_vault").first;
+//    std::cout << std::string(data.begin(), data.end());
 
     // Make request and first_row_request public before testing
     /*constexpr std::string_view sql = "SELECT * FROM users;";

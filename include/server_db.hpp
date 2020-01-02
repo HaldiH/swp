@@ -40,7 +40,9 @@ class ServerDB {
 
     int setSessionID(SessionID<SESSIONID_SIZE> sessionId, std::string_view username);
 
-    bool checkSessionID(std::string_view username, std::string_view session_id);
+    [[nodiscard]] bool isSessionIdValid(std::string_view username, std::string_view session_id);
+
+    int cleanSessionID();
 
     int setPassword(std::string_view username, std::string_view password);
 
