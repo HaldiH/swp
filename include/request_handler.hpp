@@ -103,44 +103,46 @@ beast::string_view mime_type(beast::string_view path) {
 // caller to pass a generic lambda for receiving the response.
 template <class Body, class Allocator, class Send>
 void handle_request(beast::string_view doc_root, http::request<Body, http::basic_fields<Allocator>>&& req, Send&& send, swp::ServerDB& db) {
-    auto const http_error_builder = [&req](http::status status, boost::string_view body) {
+    auto const response_builder = [&req](http::status status) {
         http::response<http::string_body> res{status, req.version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "text/html");
         res.keep_alive(req.keep_alive());
+        return res;
+    };
+
+    auto const error_builder = [&response_builder](http::status status, boost::string_view body) {
+        auto res = response_builder(status);
         res.body() = std::string(body);
         res.prepare_payload();
         return res;
     };
 
-    // Returns a bad request response
-    auto const bad_request = [&http_error_builder](beast::string_view why) { return http_error_builder(http::status::bad_request, why); };
+    auto const ok_response = [&response_builder] {
+        auto res = response_builder(http::status::ok);
+        res.prepare_payload();
+        return res;
+    };
 
-    auto const method_not_allowed = [&http_error_builder](beast::string_view target) {
-        return http_error_builder(http::status::method_not_allowed,
-                                  "The resource '" + std::string(target) + "' doesn't support the requested method.");
+    // Returns a bad request response
+    auto const bad_request = [&error_builder](beast::string_view why) { return error_builder(http::status::bad_request, why); };
+
+    auto const method_not_allowed = [&error_builder](beast::string_view target) {
+        return error_builder(http::status::method_not_allowed, "The resource '" + std::string(target) + "' doesn't support the requested method.");
     };
 
     // Returns a not found response
-    auto const not_found = [&http_error_builder](beast::string_view target) {
-        return http_error_builder(http::status::not_found, "The resource '" + std::string(target) + "' was not found.");
+    auto const not_found = [&error_builder](beast::string_view target) {
+        return error_builder(http::status::not_found, "The resource '" + std::string(target) + "' was not found.");
     };
 
-    auto const unauthorized = [&http_error_builder](boost::string_view target) {
-        return http_error_builder(http::status::unauthorized, "The resource '" + std::string(target) + "' requires authorization.");
+    auto const unauthorized = [&error_builder](boost::string_view target) {
+        return error_builder(http::status::unauthorized, "The resource '" + std::string(target) + "' requires authorization.");
     };
 
     // Returns a server error response
-    auto const server_error = [&http_error_builder](beast::string_view what) {
-        return http_error_builder(http::status::internal_server_error, "An error occurred: '" + std::string(what) + "'");
-    };
-
-    auto const ok_response = [&req, &http_error_builder] {
-        http::response<http::string_body> res{http::status::ok, req.version()};
-        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-        res.set(http::field::content_type, "text/html");
-        res.keep_alive(req.keep_alive());
-        return res;
+    auto const server_error = [&error_builder](beast::string_view what) {
+        return error_builder(http::status::internal_server_error, "An error occurred: '" + std::string(what) + "'");
     };
 
     auto const login = [&](beast::string_view target) {
@@ -155,8 +157,9 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
             return unauthorized(req.target());
         SessionID<SESSIONID_SIZE> sessionId;
         db.setSessionID(sessionId, username);
-        auto res = ok_response();
+        auto res = response_builder(http::status::ok);
         res.set(http::field::set_cookie, "sessionid=" + std::string(sessionId.view()));
+        res.prepare_payload();
         return res;
     };
 
@@ -174,8 +177,9 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
                 for (auto& vault : db.listVault(username)) {
                     buffer += vault + '\n';
                 }
-                auto res = ok_response();
+                auto res = response_builder(http::status::ok);
                 res.body() = buffer;
+                res.prepare_payload();
                 return res;
             }
             if (!target.starts_with('/'))
@@ -184,8 +188,9 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
             auto vault = db.getVault(username, vault_name);
             if (vault.second != SQLITE_OK)
                 return not_found(req.target());
-            auto res = ok_response();
+            auto res = response_builder(http::status::ok);
             res.body() = std::string(vault.first.begin(), vault.first.end());
+            res.prepare_payload();
             return res;
         }
         case http::verb::post: {
@@ -236,12 +241,11 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
     };
 
     auto const api = [&](beast::string_view target) {
-        boost::string_view key;
-        if (key = "/login"; target.starts_with(key))
+        if (constexpr beast::string_view key = "/login"; target.starts_with(key))
             return login(target.substr(key.size()));
-        if (key = "/register"; target.starts_with(key))
+        if (constexpr beast::string_view key = "/register"; target.starts_with(key))
             return register_(target.substr(key.size()));
-        if (key = "/vault"; target.starts_with(key))
+        if (constexpr beast::string_view key = "/vault"; target.starts_with(key))
             return vault(target.substr(key.size()));
         return not_found(req.target());
     };
@@ -250,7 +254,7 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
     if (req.target().empty() || req.target()[0] != '/' || req.target().find("..") != beast::string_view::npos)
         return send(bad_request("Illegal request-target"));
 
-    if (boost::string_view key = "/api"; req.target().starts_with(key))
+    if (constexpr beast::string_view key = "/api"; req.target().starts_with(key))
         return send(api(req.target().substr(key.size())));
 
     // Build the path to the requested file

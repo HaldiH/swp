@@ -6,9 +6,8 @@ set(CMAKE_CXX_STANDARD 17)
 add_compile_options("-O1")
 add_compile_options("-mtune=native")
 
-include_directories(include/ third_party/ctre/include/)
-
 add_executable(server src/main.cpp src/server_db.cpp)
+target_include_directories(server PUBLIC include)
 target_link_libraries(server pthread crypto ssl sqlite3 argon2)
 
 if (WIN32)
@@ -25,4 +24,5 @@ if (Boost_FOUND)
 endif ()
 
 add_executable(tests test/main.cpp src/server_db.cpp)
+target_include_directories(tests PUBLIC include)
 target_link_libraries(tests argon2 pthread sqlite3)
