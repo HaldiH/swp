@@ -142,7 +142,7 @@ std::vector<std::string> ServerDB::listVault(std::string_view owner) {
     return rows;
 }
 
-std::pair<BLOB_Data, int> ServerDB::getVault(std::string_view username, std::string_view vault_name) {
+std::pair<BLOB_Data, int> ServerDB::getVault(std::string_view owner, std::string_view vault_name) {
     const auto err = [&](int rc) { return std::make_pair(BLOB_Data{}, error(rc)); };
     constexpr auto sql = "SELECT `data` FROM vaults WHERE `owner` = ? AND `name` = ?;"sv;
     int rc;
@@ -150,7 +150,7 @@ std::pair<BLOB_Data, int> ServerDB::getVault(std::string_view username, std::str
     rc = sqlite3_prepare_v2(db, sql.data(), -1, &stmt, nullptr);
     if (rc != SQLITE_OK)
         return err(rc);
-    rc = sqlite3_bind_text(stmt, 1, username.data(), username.size(), SQLITE_STATIC);
+    rc = sqlite3_bind_text(stmt, 1, owner.data(), owner.size(), SQLITE_STATIC);
     if (rc != SQLITE_OK)
         return err(rc);
     rc = sqlite3_bind_text(stmt, 2, vault_name.data(), vault_name.size(), SQLITE_STATIC);
@@ -207,6 +207,11 @@ int ServerDB::updateVault(std::string_view vault_name, std::string_view owner, c
         return rc;
     }
     return sqlite3_finalize(stmt);
+}
+
+int ServerDB::deleteVault(std::string_view vault_name, std::string_view owner) {
+    constexpr auto sql = "DELETE FROM vaults WHERE `owner` = ? AND `name` = ?"sv;
+    return first_row_request(sql, 0, std::vector<std::string_view>{owner, vault_name}).second;
 }
 
 int ServerDB::exec_request(std::string_view sql) {

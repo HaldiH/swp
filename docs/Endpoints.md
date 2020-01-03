@@ -50,20 +50,36 @@ This methods needs the following headers
 
 List the name of all the vaults owned by the user.
 
+---
+
 > **GET** /vault/:vault_name
 
 Get the BLOB data stored in the vault.
 
+---
+
 > **POST** /vault
+
+Create a new vault with BLOBs sent in request body.
 
 Including [auth headers](#authentication-headers), this method needs the following headers
 
 | Name       | Format     | Description          |
 | ---------- | ---------- | -------------------- |
-| Vault name | vault-name | The vault identifier |
+| Vault name | Vault-Name | The vault identifier |
 
-In addition to that, the client needs to send AES encrypted BLOB data that contains passwords.
+In addition to that, the request needs a body containing BLOBs.
 
-> **UPDATE** /vault/:vault_name
+---
 
-This method needs the client sends an AES encrypted BLOB with the new vault.
+> **PATCH** /vault/:vault_name
+
+Update the BLOBs inside the vault.
+
+The request needs a body containing BLOBs.
+
+---
+
+> **DELETE** /vault/:vault_name
+
+Delete the vault from the database.

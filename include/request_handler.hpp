@@ -108,7 +108,7 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "text/html");
         res.keep_alive(req.keep_alive());
-        res.body() = body.to_string();
+        res.body() = std::string(body);
         res.prepare_payload();
         return res;
     };
@@ -118,7 +118,7 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
 
     auto const method_not_allowed = [&http_error_builder](beast::string_view target) {
         return http_error_builder(http::status::method_not_allowed,
-                                  "The resource '" + target.to_string() + "' doesn't support the requested method.");
+                                  "The resource '" + std::string(target) + "' doesn't support the requested method.");
     };
 
     // Returns a not found response
@@ -127,7 +127,7 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
     };
 
     auto const unauthorized = [&http_error_builder](boost::string_view target) {
-        return http_error_builder(http::status::unauthorized, "The resource '" + target.to_string() + "' requires authorization.");
+        return http_error_builder(http::status::unauthorized, "The resource '" + std::string(target) + "' requires authorization.");
     };
 
     // Returns a server error response
@@ -170,7 +170,7 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
         switch (req.method()) {
         case http::verb::get: {
             std::string buffer{};
-            if (target.empty() || target.substr(0) == "/") {
+            if (target.empty() || (target.starts_with('/') && target.substr(1).empty())) {
                 for (auto& vault : db.listVault(username)) {
                     buffer += vault + '\n';
                 }
@@ -180,20 +180,59 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
             }
             if (!target.starts_with('/'))
                 return not_found(req.target());
-            auto vault_name = target.substr(1);
-            auto vault = db.getVault(username, bsv2sv(vault_name));
+            auto vault_name = bsv2sv(target.substr(1));
+            auto vault = db.getVault(username, vault_name);
             if (vault.second != SQLITE_OK)
                 return not_found(req.target());
             auto res = ok_response();
             res.body() = std::string(vault.first.begin(), vault.first.end());
             return res;
         }
-        case http::verb::post: // NOT implemented yet - WIP
-            break;
+        case http::verb::post: {
+            if (!(target.empty() || (target.starts_with('/') && target.substr(1).empty())))
+                return method_not_allowed(req.target());
+            auto vault_name = bsv2sv(req["Vault-Name"]);
+            if (vault_name.empty())
+                return bad_request("Vault name cannot be empty.");
+            auto body = req.body();
+            if (int rc = db.storeVault(username, vault_name, swp::BLOB_Data(body.begin(), body.end())); rc != SQLITE_OK) {
+                if (rc == SQLITE_CONSTRAINT)
+                    return bad_request("The vault '" + std::string(vault_name) + "' already exists.");
+                return server_error("Cannot store vault data.");
+            }
+            return ok_response();
+        }
+        case http::verb::delete_: {
+            if (target.empty())
+                return method_not_allowed(req.target());
+            if (!target.starts_with('/'))
+                return not_found(req.target());
+            target = target.substr(1);
+            if (target.empty())
+                return method_not_allowed(req.target());
+            if (int rc = db.deleteVault(bsv2sv(target), username); rc != SQLITE_OK)
+                return server_error("Cannot delete the requested vault.");
+            return ok_response();
+        }
+        case http::verb::patch: {
+            if (target.empty())
+                return method_not_allowed(req.target());
+            if (!target.starts_with('/'))
+                return not_found(req.target());
+            target = target.substr(1);
+            if (target.empty())
+                return method_not_allowed(req.target());
+            auto body = req.body();
+            if (int rc = db.updateVault(bsv2sv(target), username, swp::BLOB_Data(body.begin(), body.end())); rc != SQLITE_OK) {
+                if (rc == SQLITE_DONE)
+                    return bad_request("The vault '" + std::string(target) + "' doesn't exist.");
+                return server_error("Cannot update the requested vault.");
+            }
+            return ok_response();
+        }
         default:
             return method_not_allowed(req.target());
         }
-        return method_not_allowed(req.target());
     };
 
     auto const api = [&](beast::string_view target) {
@@ -206,10 +245,6 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
             return vault(target.substr(key.size()));
         return not_found(req.target());
     };
-
-    // Make sure we can handle the method
-    if (req.method() != http::verb::get && req.method() != http::verb::head)
-        return send(bad_request("Unknown HTTP-method"));
 
     // Request path must be absolute and not contain "..".
     if (req.target().empty() || req.target()[0] != '/' || req.target().find("..") != beast::string_view::npos)

@@ -52,11 +52,13 @@ class ServerDB {
 
     [[nodiscard]] std::vector<std::string> listVault(std::string_view owner);
 
-    [[nodiscard]] std::pair<BLOB_Data, int> getVault(std::string_view username, std::string_view vault_name);
+    [[nodiscard]] std::pair<BLOB_Data, int> getVault(std::string_view owner, std::string_view vault_name);
 
     int storeVault(std::string_view username, std::string_view vault_name, const BLOB_Data& data);
 
     int updateVault(std::string_view vault_name, std::string_view owner, const BLOB_Data& data);
+
+    int deleteVault(std::string_view vault_name, std::string_view owner);
 
   private:
     sqlite3* db{};
