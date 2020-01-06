@@ -11,22 +11,20 @@
 #include <random>
 #include <string_view>
 
-constexpr auto SESSIONID_SIZE = 128;
-
 constexpr auto mk_printable(uint8_t bits) -> char {
     constexpr std::string_view table = "0123465789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz=-";
     static_assert(table.size() == 64);
     return table[+bits];
 }
 
-template <std::size_t N, class = std::enable_if_t<(N % 8) == 0>> class SessionID {
+template <std::size_t N, class = std::enable_if_t<(N % 8) == 0>> class SessionId {
     inline static std::ranlux48 eng;
     inline static bool eng_init = false;
 
     std::array<char, N> storage{};
 
   public:
-    SessionID() {
+    SessionId() {
         if (!eng_init) {
             eng_init = true;
             std::random_device rd;

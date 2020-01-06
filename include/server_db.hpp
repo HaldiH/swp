@@ -14,6 +14,9 @@ namespace swp {
 constexpr auto HASHLEN = 32;
 constexpr auto SALTLEN = 16;
 constexpr auto ENCLEN = 4 * HASHLEN;
+constexpr auto SESSIONID_SIZE = 128;
+constexpr auto TOKEN_SIZE = 128;
+template <std::size_t N, class = std::enable_if_t<(N % 8) == 0>> using Token = SessionId<N>;
 
 using BLOB_Data = std::vector<uint8_t>;
 
@@ -32,13 +35,17 @@ class ServerDB {
 
     int open(const char* filename);
 
-    [[nodiscard]] SecValue<std::string> getToken(std::string_view username);
+    [[nodiscard]] SecValue<std::string> listToken(std::string_view owner);
 
-    int setToken(std::string_view token, std::string_view username);
+    [[nodiscard]] std::pair<std::string, int> getToken(std::string_view owner, std::string_view token_name);
 
-    [[nodiscard]] bool tokenMatch(std::string_view username, std::string_view token_to_check);
+    int setToken(Token<TOKEN_SIZE> token, std::string_view owner, std::string_view name);
 
-    int setSessionID(SessionID<SESSIONID_SIZE> sessionId, std::string_view username);
+    int deleteToken(std::string_view owner, std::string_view token);
+
+    [[nodiscard]] bool isTokenValid(std::string_view owner, std::string_view token);
+
+    int setSessionID(SessionId<SESSIONID_SIZE> sessionId, std::string_view username);
 
     [[nodiscard]] bool isSessionIdValid(std::string_view username, std::string_view session_id);
 
@@ -50,7 +57,7 @@ class ServerDB {
 
     [[nodiscard]] std::string getPasswordHash(std::string_view username);
 
-    [[nodiscard]] std::vector<std::string> listVault(std::string_view owner);
+    [[nodiscard]] std::pair<std::vector<std::string>, int> listVault(std::string_view owner);
 
     [[nodiscard]] std::pair<BLOB_Data, int> getVault(std::string_view owner, std::string_view vault_name);
 
@@ -69,7 +76,13 @@ class ServerDB {
 
     SecValue<std::string> request(std::string_view sql, const std::vector<std::string_view>& args);
 
-    std::pair<std::string, int> first_row_request(std::string_view sql, int iCol, const std::vector<std::string_view>& args);
+    std::pair<std::string, int> firstRowColumn(std::string_view sql, int iCol, const std::vector<std::string_view>& args);
+
+    template <class T> std::pair<std::vector<T>, int> singleColumnList(std::string_view sql, int iCol, const std::vector<std::string_view>& args);
+
+    template <class T> std::pair<std::vector<T>, int> firstRow(std::string_view sql, const std::vector<std::string_view>& args);
+
+    int setTokenLastUsage(std::string_view owner, std::string_view token);
 
     [[nodiscard]] static std::pair<std::string, int> getEncodedPassword(std::string_view password);
 };

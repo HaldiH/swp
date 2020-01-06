@@ -27,7 +27,7 @@ int main(int argc, char* argv[]) {
 //    auto data = db.getVault("test", "test_vault").first;
 //    std::cout << std::string(data.begin(), data.end());
 
-    // Make request and first_row_request public before testing
+    // Make request and firstRowColumn public before testing
     /*constexpr std::string_view sql = "SELECT * FROM users;";
     auto res = db.request(sql, std::vector<std::string_view>{});
     for (const auto& rows : res.value) {
@@ -38,7 +38,7 @@ int main(int argc, char* argv[]) {
         std::cout << std::endl;
     }
 
-    auto res2 = db.first_row_request(sql, 1, std::vector<std::string_view>{});
+    auto res2 = db.firstRowColumn(sql, 1, std::vector<std::string_view>{});
     std::cout << res2.first << std::endl;*/
 
     //    std::cout << argon2i_verify(db.getPasswordHash("test").c_str(), pwd.c_str(), pwd.size()) << std::endl;

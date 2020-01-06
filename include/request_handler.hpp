@@ -108,20 +108,20 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "text/html");
         res.keep_alive(req.keep_alive());
-        return res;
+        return std::move(res);
     };
 
     auto const error_builder = [&response_builder](http::status status, boost::string_view body) {
         auto res = response_builder(status);
         res.body() = std::string(body);
         res.prepare_payload();
-        return res;
+        return std::move(res);
     };
 
     auto const ok_response = [&response_builder] {
         auto res = response_builder(http::status::ok);
         res.prepare_payload();
-        return res;
+        return std::move(res);
     };
 
     // Returns a bad request response
@@ -145,42 +145,55 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
         return error_builder(http::status::internal_server_error, "An error occurred: '" + std::string(what) + "'");
     };
 
+    auto const isAuthenticated = [&req, &db](std::string_view username) {
+        if (username.empty())
+            return false;
+        auto sessionId = bsv2sv(req["Session-Id"]);
+        auto token = bsv2sv(req["X-Auth-Token"]);
+        return db.isSessionIdValid(username, sessionId) || db.isTokenValid(username, token);
+    };
+
     auto const login = [&](beast::string_view target) {
         if (req.method() != http::verb::get)
             return method_not_allowed(req.target());
         if (!target.empty())
             return not_found(req.target());
         auto username = bsv2sv(req["Username"]);
+        if (isAuthenticated(username))
+            return not_found(req.target());
         auto password = bsv2sv(req["Password"]);
         if (username.empty() || password.empty() ||
             argon2i_verify(db.getPasswordHash(username).data(), password.data(), password.size()) != ARGON2_OK)
             return unauthorized(req.target());
-        SessionID<SESSIONID_SIZE> sessionId;
-        db.setSessionID(sessionId, username);
+        SessionId<swp::SESSIONID_SIZE> sessionId;
+        if (db.setSessionID(sessionId, username) != SQLITE_OK)
+            return server_error("Cannot store session id.");
         auto res = response_builder(http::status::ok);
-        res.set(http::field::set_cookie, "sessionid=" + std::string(sessionId.view()));
+        res.set(http::field::set_cookie, "Session-Id=" + std::string(sessionId.view()));
         res.prepare_payload();
-        return res;
+        return std::move(res);
     };
 
     auto const register_ = [&](beast::string_view target) { return not_found(req.target()); }; // NOT implemented yet - WIP
 
     auto const vault = [&](beast::string_view target) {
         auto username = bsv2sv(req["Username"]);
-        auto sessionId = bsv2sv(req["sessionid"]);
-        if (username.empty() || sessionId.empty() || !db.isSessionIdValid(username, sessionId))
+        if (!isAuthenticated(username))
             return unauthorized(req.target());
         switch (req.method()) {
         case http::verb::get: {
             std::string buffer{};
             if (target.empty() || (target.starts_with('/') && target.substr(1).empty())) {
-                for (auto& vault : db.listVault(username)) {
+                auto vaults = db.listVault(username);
+                if (vaults.second != SQLITE_OK)
+                    return server_error("Cannot load the user vaults.");
+                for (auto& vault : vaults.first) {
                     buffer += vault + '\n';
                 }
                 auto res = response_builder(http::status::ok);
                 res.body() = buffer;
                 res.prepare_payload();
-                return res;
+                return std::move(res);
             }
             if (!target.starts_with('/'))
                 return not_found(req.target());
@@ -191,7 +204,7 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
             auto res = response_builder(http::status::ok);
             res.body() = std::string(vault.first.begin(), vault.first.end());
             res.prepare_payload();
-            return res;
+            return std::move(res);
         }
         case http::verb::post: {
             if (!(target.empty() || (target.starts_with('/') && target.substr(1).empty())))
@@ -240,6 +253,72 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
         }
     };
 
+    auto const token = [&](beast::string_view target) {
+        auto username = bsv2sv(req["Username"]);
+        if (!isAuthenticated(username))
+            return unauthorized(req.target());
+        switch (req.method()) {
+        case http::verb::get: {
+            if (!target.empty()) {
+                if (!target.starts_with('/'))
+                    return not_found(req.target());
+                if (!target.substr(1).empty())
+                    return method_not_allowed(req.target());
+            }
+            auto tokens = db.listToken(username);
+            if (tokens.sqlite_code != SQLITE_OK)
+                return server_error("Cannot load the username tokens.");
+            auto res = response_builder(http::status::ok);
+            std::string buffer{};
+            for (const auto& row : tokens.value) {
+                buffer += "Name: " + row[0] + '\n' + "Token: " + row[1] + '\n' + "Creation-Date: " + row[2] + '\n' + "Last-Usage: " + [&row] {
+                    if (row.size() >= 4) {
+                        if (const auto v = row[3]; !v.empty())
+                            return row[3];
+                    }
+                    return std::string("N/A");
+                }() + "\n\n";
+            }
+            res.body() = buffer;
+            res.prepare_payload();
+            return std::move(res);
+        }
+        case http::verb::post: {
+            if (!target.empty()) {
+                if (!target.starts_with('/'))
+                    return not_found(req.target());
+                if (!target.substr(1).empty())
+                    return method_not_allowed(req.target());
+            }
+            const auto token_name = bsv2sv(req["Token-Name"]);
+            if (token_name.empty())
+                return bad_request("Token name cannot be empty.");
+            swp::Token<swp::TOKEN_SIZE> token;
+            if (db.setToken(token, username, token_name) != SQLITE_OK)
+                return server_error("Cannot set a token.");
+            return ok_response();
+        }
+        case http::verb::delete_: {
+            if (!target.starts_with('/'))
+                return not_found(req.target());
+            target = target.substr(1);
+            if (target.empty())
+                return method_not_allowed(req.target());
+            if (db.deleteToken(username, bsv2sv(target)) != SQLITE_OK)
+                return server_error("Cannot delete the token.");
+            return ok_response();
+        }
+        default:
+            return method_not_allowed(req.target());
+        }
+    };
+
+    auto const user = [&](beast::string_view target) {
+        if (constexpr beast::string_view key = "/token"; target.starts_with(key))
+            return token(target.substr(key.size()));
+        return not_found(req.target());
+    };
+
     auto const api = [&](beast::string_view target) {
         if (constexpr beast::string_view key = "/login"; target.starts_with(key))
             return login(target.substr(key.size()));
@@ -247,6 +326,8 @@ void handle_request(beast::string_view doc_root, http::request<Body, http::basic
             return register_(target.substr(key.size()));
         if (constexpr beast::string_view key = "/vault"; target.starts_with(key))
             return vault(target.substr(key.size()));
+        if (constexpr beast::string_view key = "/user"; target.starts_with(key))
+            return user(target.substr(key.size()));
         return not_found(req.target());
     };
 
