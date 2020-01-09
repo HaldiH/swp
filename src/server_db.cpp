@@ -8,7 +8,7 @@ using namespace std::literals;
 namespace swp {
 
 int ServerDB::error(int rc) {
-    std::cerr << sqlite3_errmsg(db) << std::endl;
+    std::cerr << "Code: " << rc << std::endl << "Message: " << sqlite3_errmsg(db) << std::endl;
     return rc;
 }
 
@@ -81,7 +81,7 @@ int ServerDB::deleteToken(std::string_view owner, std::string_view token_name) {
 
 bool ServerDB::isTokenValid(std::string_view owner, std::string_view token) {
     constexpr auto sql = "SELECT `token` FROM tokens WHERE `owner` = ? AND `token` = ?;"sv;
-    const auto value = firstRowColumn(sql, 0, std::vector<std::string_view>{owner, token, owner, token});
+    const auto value = firstRowColumn(sql, 0, std::vector<std::string_view>{owner, token});
     if (value.second != SQLITE_OK)
         return false;
     if (value.first.empty())
