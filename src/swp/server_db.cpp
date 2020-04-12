@@ -1,7 +1,7 @@
 //
 // Created by hugo on 13.12.19.
 //
-#include "server_db.hpp"
+#include "swp/server_db.hpp"
 
 using namespace std::literals;
 
@@ -115,7 +115,7 @@ int ServerDB::cleanSessionID() {
 
 int ServerDB::setPassword(std::string_view username, std::string_view password) {
     constexpr auto sql = "UPDATE users SET `password` = ? WHERE `username` = ?;"sv;
-    auto value = getEncodedPassword(password);
+    auto value = getEncodedHash(password);
     if (value.second != 0)
         return value.second;
     return firstRowColumn(sql, 0, std::vector<std::string_view>{value.first, username}).second;
@@ -123,7 +123,7 @@ int ServerDB::setPassword(std::string_view username, std::string_view password) 
 
 int ServerDB::registerUser(std::string_view username, std::string_view password) {
     constexpr auto sql = "INSERT INTO users (username,password) VALUES (?,?);"sv;
-    auto value = getEncodedPassword(password);
+    auto value = getEncodedHash(password);
     if (value.second != 0)
         return value.second;
     return firstRowColumn(sql, 0, std::vector<std::string_view>{username, value.first}).second;
@@ -331,7 +331,7 @@ template <class T> std::pair<std::vector<T>, int> ServerDB::firstRow(std::string
     return std::make_pair(std::move(row), rc);
 }
 
-std::pair<std::string, int> ServerDB::getEncodedPassword(std::string_view password) {
+std::pair<std::string, int> ServerDB::getEncodedHash(std::string_view password) {
     auto const err = [&](int rc) {
         std::cerr << "Error occurred while encoding password: " << rc << std::endl;
         return make_pair(std::string{}, rc);

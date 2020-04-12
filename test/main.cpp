@@ -3,7 +3,7 @@
 //
 
 #include <string>
-#include "server_db.hpp"
+#include "swp/server_db.hpp"
 
 int main(int argc, char* argv[]) {
     swp::ServerDB db("server.db");

@@ -84,6 +84,6 @@ class ServerDB {
 
     int setTokenLastUsage(std::string_view owner, std::string_view token);
 
-    [[nodiscard]] static std::pair<std::string, int> getEncodedPassword(std::string_view password);
+    [[nodiscard]] static std::pair<std::string, int> getEncodedHash(std::string_view password);
 };
 } // namespace swp
